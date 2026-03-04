@@ -1,0 +1,8 @@
+@import "tailwindcss";
+:root {
+  --gradient-primary: linear-gradient(to top, #3d601d, #c7f669);
+}
+
+.btn-gradient {
+  background: var(--gradient-primary);
+}
