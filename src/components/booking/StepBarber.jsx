@@ -45,9 +45,9 @@ export default function StepBarber({
             >
               <div className="text-center">
                 <div className="w-20 h-20 rounded-full mx-auto mb-4 overflow-hidden bg-white/10">
-                  {barber.photo_url ? (
+                  {barber.imageUrl || barber.photo_url ? (
                     <img
-                      src={barber.photo_url}
+                      src={barber.imageUrl || barber.photo_url}
                       alt={barber.name}
                       className="w-full h-full object-cover"
                     />

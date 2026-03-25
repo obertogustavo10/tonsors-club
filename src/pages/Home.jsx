@@ -1,18 +1,20 @@
-import { Flex, Text, Button } from "@radix-ui/themes";
+import { Button } from "@radix-ui/themes";
 import React from 'react';
-import { Link, } from 'react-router-dom';
-import { Scissors, Settings, Calendar, Users, MapPin, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Settings, Calendar, Users, MapPin, Star } from 'lucide-react';
 import { motion } from "motion/react"
-import useNavigation from "../hooks/useNavigation";
-import logoTonsors from "../assets/logo-tonsors.png";
+import logoTonsors from "../assets/logo-tonsors-dorado.png";
+import barberiaBg from "../assets/barberia.png";
 
 export default function Home() {
-  const { goTo } = useNavigation();
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1920')] bg-cover bg-center opacity-20" />
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-20"
+          style={{ backgroundImage: `url(${barberiaBg})` }}
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/50 to-slate-900" />
         
         <div className="relative max-w-7xl mx-auto px-4 py-24 sm:py-32">
@@ -33,7 +35,7 @@ export default function Home() {
             </div>
             
             <h1 className="text-5xl sm:text-7xl font-bold text-white mb-6">
-              Tonsors'<span className="bg-clip-text text-transparent bg-gradient-to-t from-[#3d601d] to-[#c7f669]">Club</span>
+              Tonsor's <span className="bg-clip-text text-transparent bg-gradient-to-t from-[#3d601d] to-[#c7f669]">Club</span>
             </h1>
             
             <p className="text-xl text-slate-300 mb-12 max-w-2xl mx-auto">
@@ -41,13 +43,13 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to={goTo('/Client')}>
+              <Link to="/Client">
                 <Button className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-black font-bold text-lg px-8 py-6 rounded-xl shadow-lg shadow-amber-500/30">
                   <Calendar className="w-6 h-6 mr-2" />
                   Reservar Cita
                 </Button>
               </Link>
-{/*               <Link to={goTo('/Admin')}>
+              <Link to="/Admin">
                 <Button 
                   variant="outline" 
                   className="w-full sm:w-auto border-white/20 text-white hover:bg-white/10 font-semibold text-lg px-8 py-6 rounded-xl"
@@ -55,7 +57,7 @@ export default function Home() {
                   <Settings className="w-6 h-6 mr-2" />
                   Panel Admin
                 </Button>
-              </Link> */}
+              </Link>
             </div>
           </motion.div>
         </div>

@@ -9,10 +9,10 @@ export default function AppRoutes() {
       path: "/",
       element: <Home />,
     },
-/*     {
+    {
       path: "/Admin",
       element: <Admins />,
-    }, */
+    },
     {
       path: "/Client",
       element: <Client />,

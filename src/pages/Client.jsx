@@ -14,7 +14,7 @@ import { listServicios } from "../service/servicios.api";
 import FullPageLoader from "../components/ui/FullPageLoader";
 import { mockBookings } from "../mock/bookingMockData";
 import { reserveSlotAtomic } from "../service/barberAvailability.api";
-import logoTonsors from "../assets/logo-tonsors.png";
+import logoTonsors from "../assets/logo-tonsors-dorado.png";
 import { Link } from "react-router-dom";
 import {
   getInitialBooking,

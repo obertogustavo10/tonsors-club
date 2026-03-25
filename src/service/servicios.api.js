@@ -125,7 +125,11 @@ export async function updateServicio({ id, data }) {
 
     const patch = { ...data };
 
-    if (typeof data?.title === "string") patch.title = data.title.trim();
+    if (typeof data?.title === "string") {
+        const cleanTitle = data.title.trim();
+        patch.title = cleanTitle;
+        patch.name = cleanTitle;
+    }
     if (typeof data?.description === "string") patch.description = data.description.trim();
 
     // si actualizan durationLabel o durationMinutes, recalculamos consistencia
@@ -136,6 +140,7 @@ export async function updateServicio({ id, data }) {
                 : parseDurationToMinutes(data?.durationLabel);
 
         patch.durationMinutes = Number.isFinite(durationMinutes) ? durationMinutes : null;
+        patch.duration = Number.isFinite(durationMinutes) ? durationMinutes : null;
 
         const durationLabel =
             (typeof data?.durationLabel === "string" && data.durationLabel.trim()) ||
@@ -158,6 +163,7 @@ export async function updateServicio({ id, data }) {
             (Number.isFinite(priceAmount) ? formatPriceLabel(priceAmount) : "");
 
         patch.priceLabel = priceLabel;
+        patch.price = priceLabel;
     }
 
     if (Array.isArray(data?.includes)) patch.includes = data.includes.filter(Boolean);
