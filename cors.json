@@ -2,7 +2,8 @@
   {
     "origin": [
       "http://localhost:5173",
-      "https://tonsors-club.vercel.app"
+      "https://tonsors-club.vercel.app",
+      "https://tonsorsclub.com"
     ],
     "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "responseHeader": ["Content-Type", "Authorization"],

@@ -100,6 +100,9 @@ export default function Client() {
         service_id: bookingData.service?.id ?? null,
         barber: bookingData.autoAssign ? null : bookingData.barber,
         barber_id: bookingData.autoAssign ? null : bookingData.barber?.id ?? null,
+        barbero_email: bookingData.autoAssign
+          ? null
+          : bookingData.barber?.email ?? null,
         autoAssign: bookingData.autoAssign,
 
         date: bookingData.date,
