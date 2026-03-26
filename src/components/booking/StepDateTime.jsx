@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import {
   ensureBarberDaySlots,
   DEFAULT_TIME_SLOTS,
+  getArgentinaTodayDateString,
   isPastTimeSlot,
 } from "../../service/barberAvailability.api";
 import BarberLoader from "../ui/BarberLoader";
@@ -65,9 +66,10 @@ export default function StepDateTime({
   const [loading, setLoading] = useState(false);
 
   const availableDates = useMemo(() => {
+    const today = parseISO(getArgentinaTodayDateString());
     const dates = [];
     for (let i = 0; i < 31; i++) {
-      dates.push(addDays(new Date(), i));
+      dates.push(addDays(today, i));
     }
     return dates;
   }, []);
@@ -96,7 +98,7 @@ export default function StepDateTime({
   };
 
   useEffect(() => {
-    const dateStr = selectedDate || format(new Date(), "yyyy-MM-dd");
+    const dateStr = selectedDate || getArgentinaTodayDateString();
     loadDaySlots(dateStr, selectedTime || "");
   }, [barbers?.id, barbers?.available, selectedDate]);
 
@@ -129,7 +131,7 @@ export default function StepDateTime({
           {availableDates.map((date, index) => {
             const isSelected =
               selectedDateObj && isSameDay(date, selectedDateObj);
-            const isToday = isSameDay(date, new Date());
+            const isToday = format(date, "yyyy-MM-dd") === getArgentinaTodayDateString();
 
             return (
               <motion.button

@@ -1,18 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Clock, Lock, ShieldCheck } from "lucide-react";
-import { format } from "date-fns";
 import FullPageLoader from "../ui/FullPageLoader";
 import {
   DEFAULT_TIME_SLOTS,
   computeAvailableSlots,
   ensureBarberDaySlots,
   filterFutureSlots,
+  getArgentinaTodayDateString,
   isPastTimeSlot,
   setManualBlockedSlots,
 } from "../../service/barberAvailability.api";
 
 function getTodayDate() {
-  return format(new Date(), "yyyy-MM-dd");
+  return getArgentinaTodayDateString();
 }
 
 export default function AvailabilityTab({

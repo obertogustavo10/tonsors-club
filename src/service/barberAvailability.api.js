@@ -23,10 +23,44 @@ export const DEFAULT_TIME_SLOTS = [
   "19:00",
 ];
 
+export const ARGENTINA_TIMEZONE = "America/Argentina/Buenos_Aires";
+
 const COLLECTION = "barbero_slots";
 const makeId = (barberId, date) => `${barberId}_${date}`;
 
 const uniq = (arr) => [...new Set((arr || []).filter(Boolean))];
+
+function getArgentinaDateParts(now = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ARGENTINA_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+  const parts = formatter.formatToParts(now).reduce((acc, part) => {
+    if (part.type !== "literal") {
+      acc[part.type] = part.value;
+    }
+    return acc;
+  }, {});
+
+  return {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+    hour: Number(parts.hour),
+    minute: Number(parts.minute),
+  };
+}
+
+export function getArgentinaTodayDateString(now = new Date()) {
+  const { year, month, day } = getArgentinaDateParts(now);
+  return `${year}-${month}-${day}`;
+}
 
 function normalizeDaySlots(docRefOrSnapId, data = {}) {
   return {
@@ -226,16 +260,17 @@ export function computeAvailableSlots({ blockedSlots = [], bookedSlots = [] }) {
 export function isPastTimeSlot({ date, time, now = new Date() }) {
   if (!date || !time) return false;
 
-  const todayString = now.toISOString().slice(0, 10);
+  const todayString = getArgentinaTodayDateString(now);
   if (date !== todayString) return false;
 
   const [hours, minutes] = time.split(":").map(Number);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return false;
 
-  const slotDate = new Date(now);
-  slotDate.setHours(hours, minutes, 0, 0);
+  const argentinaNow = getArgentinaDateParts(now);
+  const slotMinutes = hours * 60 + minutes;
+  const nowMinutes = argentinaNow.hour * 60 + argentinaNow.minute;
 
-  return slotDate.getTime() <= now.getTime();
+  return slotMinutes <= nowMinutes;
 }
 
 export function filterFutureSlots({ date, slots = [], now = new Date() }) {
