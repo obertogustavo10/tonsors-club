@@ -83,7 +83,9 @@ export default function Client() {
   const barbers = useMemo(() => {
     const branchId = bookingData.branch?.id;
     if (!branchId) return [];
-    return barberos?.filter((b) => b.branch_id === branchId);
+    return barberos?.filter(
+      (b) => b.branch_id === branchId && b.isActive !== false && b.available !== false
+    );
   }, [barberos, bookingData.branch?.id]);
   const bookings = mockBookings;
   const onConfirmBooking = async () => {
@@ -93,8 +95,11 @@ export default function Client() {
         id: `bk_${Date.now()}`,
 
         branch: bookingData.branch,
+        branch_id: bookingData.branch?.id ?? null,
         service: bookingData.service,
+        service_id: bookingData.service?.id ?? null,
         barber: bookingData.autoAssign ? null : bookingData.barber,
+        barber_id: bookingData.autoAssign ? null : bookingData.barber?.id ?? null,
         autoAssign: bookingData.autoAssign,
 
         date: bookingData.date,

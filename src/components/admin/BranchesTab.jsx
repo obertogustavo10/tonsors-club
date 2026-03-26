@@ -72,7 +72,10 @@ export default function BranchesTab({ branches, onRefresh }) {
     try {
       setSubmitting(true);
       if (formDialog.branch) {
-        await updateSucursal({ id: formDialog.branch.id, data: form });
+        await updateSucursal({
+          id: formDialog.branch.firestoreId || formDialog.branch.id,
+          data: form,
+        });
       } else {
         await createSucursal({ data: form });
       }
@@ -91,7 +94,9 @@ export default function BranchesTab({ branches, onRefresh }) {
 
     try {
       setSubmitting(true);
-      await deleteSucursal(deleteDialog.branch.id);
+      await deleteSucursal(
+        deleteDialog.branch.firestoreId || deleteDialog.branch.id
+      );
       closeDialogs();
       await onRefresh();
     } catch (error) {

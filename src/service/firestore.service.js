@@ -1,4 +1,3 @@
-// src/services/firestore.service.js
 import {
   collection,
   addDoc,
@@ -15,9 +14,13 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
-/**
- * Convención: cada doc tendrá createdAt/updatedAt automáticos.
- */
+function withFirestoreId(docId, data = {}) {
+  return {
+    ...data,
+    firestoreId: docId,
+    id: data?.id ?? docId,
+  };
+}
 
 export async function createItem(collectionName, data) {
   const colRef = collection(db, collectionName);
@@ -27,7 +30,7 @@ export async function createItem(collectionName, data) {
     updatedAt: serverTimestamp(),
   };
   const res = await addDoc(colRef, payload);
-  return { id: res.id, ...data };
+  return withFirestoreId(res.id, data);
 }
 
 export async function updateItem(collectionName, id, data) {
@@ -37,7 +40,7 @@ export async function updateItem(collectionName, id, data) {
     updatedAt: serverTimestamp(),
   };
   await updateDoc(docRef, payload);
-  return { id, ...data };
+  return withFirestoreId(id, data);
 }
 
 export async function deleteItem(collectionName, id) {
@@ -50,27 +53,25 @@ export async function getItemById(collectionName, id) {
   const docRef = doc(db, collectionName, id);
   const snap = await getDoc(docRef);
   if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() };
+  return withFirestoreId(snap.id, snap.data());
 }
 
 export async function listItems(collectionName) {
   const colRef = collection(db, collectionName);
   const snap = await getDocs(colRef);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map((docItem) => withFirestoreId(docItem.id, docItem.data()));
 }
 
-/**
- * Query helper ejemplo:
- * listByField("orders", "userId", "abc123")
- */
 export async function listByField(collectionName, field, value, opts = {}) {
   const colRef = collection(db, collectionName);
 
   const constraints = [where(field, "==", value)];
-  if (opts.orderByField) constraints.push(orderBy(opts.orderByField, opts.orderDir || "desc"));
+  if (opts.orderByField) {
+    constraints.push(orderBy(opts.orderByField, opts.orderDir || "desc"));
+  }
   if (opts.limit) constraints.push(limit(opts.limit));
 
   const q = query(colRef, ...constraints);
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map((docItem) => withFirestoreId(docItem.id, docItem.data()));
 }

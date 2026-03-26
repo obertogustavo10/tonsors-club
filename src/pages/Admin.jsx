@@ -11,42 +11,72 @@ import BookingsTab from "../components/admin/BookingsTab";
 import BarbersTab from "../components/admin/BarbersTab";
 import BranchesTab from "../components/admin/BranchesTab";
 import ServicesTab from "../components/admin/ServicesTab";
+import AvailabilityTab from "../components/admin/AvailabilityTab";
 import { listSucursales } from "../service/sucursales.api";
 import { listServicios } from "../service/servicios.api";
 import { listBarberos } from "../service/barberos.api";
-import { listTurnos } from "../service/turnos.service";
+import { listTurnos, listTurnosByBarbero } from "../service/turnos.service";
+import { getUserProfilesByIds } from "../service/auth.service";
 import FullPageLoader from "../components/ui/FullPageLoader";
+import { useAuth } from "../context/AuthContext";
 
-const TABS = [
+const ADMIN_TABS = [
   { id: "bookings", label: "Reservas", icon: CalendarDays },
   { id: "barbers", label: "Barberos", icon: Users },
+  { id: "availability", label: "Bloqueos", icon: CalendarDays },
   { id: "branches", label: "Sucursales", icon: MapPin },
   { id: "services", label: "Servicios", icon: Scissors },
 ];
 
+const BARBER_TABS = [
+  { id: "bookings", label: "Mis turnos", icon: CalendarDays },
+  { id: "barbers", label: "Mi perfil", icon: Users },
+  { id: "availability", label: "Mis bloqueos", icon: CalendarDays },
+];
+
 export default function Admin() {
+  const { profile, barberProfile, isAdmin, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("bookings");
   const [branches, setBranches] = useState([]);
   const [services, setServices] = useState([]);
   const [barbers, setBarbers] = useState([]);
+  const [userProfilesMap, setUserProfilesMap] = useState({});
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     try {
       setLoading(true);
+
       const [nextBranches, nextServices, nextBarbers, nextBookings] =
         await Promise.all([
           listSucursales(),
           listServicios(),
-          listBarberos(),
-          listTurnos(),
+          isAdmin ? listBarberos() : Promise.resolve([]),
+          isAdmin ? listTurnos() : listTurnosByBarbero(barberProfile?.id),
         ]);
 
       setBranches(nextBranches);
       setServices(nextServices);
-      setBarbers(nextBarbers);
+      const visibleBarbers = isAdmin
+        ? nextBarbers
+        : barberProfile
+          ? [barberProfile]
+          : [];
+      setBarbers(visibleBarbers);
       setBookings(nextBookings);
+
+      if (isAdmin) {
+        const userUids = visibleBarbers.map(
+          (barber) => barber.authUid || barber.userUid
+        );
+        const nextProfilesMap = await getUserProfilesByIds(userUids);
+        setUserProfilesMap(nextProfilesMap);
+      } else {
+        setUserProfilesMap(
+          profile?.uid && profile ? { [profile.uid]: profile } : {}
+        );
+      }
     } catch (error) {
       console.error("Error cargando admin:", error);
     } finally {
@@ -55,23 +85,40 @@ export default function Admin() {
   };
 
   useEffect(() => {
+    if (!profile) return;
     loadData();
-  }, []);
+  }, [profile?.uid, profile?.rol, barberProfile?.id]);
+
+  const tabs = isAdmin ? ADMIN_TABS : BARBER_TABS;
 
   const tabContent = useMemo(() => {
     switch (activeTab) {
       case "barbers":
         return (
           <BarbersTab
-            barbers={barbers}
+            barbers={isAdmin ? barbers : barberProfile ? [barberProfile] : []}
             branches={branches}
+            canManage={isAdmin}
+            userProfilesMap={userProfilesMap}
             onRefresh={loadData}
           />
         );
+      case "availability":
+        return (
+          <AvailabilityTab
+            canManage={isAdmin}
+            barbers={barbers}
+            selectedBarber={barberProfile}
+          />
+        );
       case "branches":
-        return <BranchesTab branches={branches} onRefresh={loadData} />;
+        return isAdmin ? (
+          <BranchesTab branches={branches} onRefresh={loadData} />
+        ) : null;
       case "services":
-        return <ServicesTab services={services} onRefresh={loadData} />;
+        return isAdmin ? (
+          <ServicesTab services={services} onRefresh={loadData} />
+        ) : null;
       case "bookings":
       default:
         return (
@@ -79,12 +126,23 @@ export default function Admin() {
             bookings={bookings}
             branches={branches}
             services={services}
-            barbers={barbers}
+            barbers={isAdmin ? barbers : barberProfile ? [barberProfile] : []}
+            canManage={isAdmin}
             onRefresh={loadData}
           />
         );
     }
-  }, [activeTab, barbers, branches, bookings, services]);
+  }, [
+    activeTab,
+    barbers,
+    barberProfile,
+    branches,
+    bookings,
+    isAdmin,
+    profile,
+    services,
+    userProfilesMap,
+  ]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -101,22 +159,36 @@ export default function Admin() {
                 <h1 className="text-2xl font-bold text-white">
                   Panel de Administracion
                 </h1>
-                <p className="text-slate-400 text-sm">Tonsors Club</p>
+                <p className="text-slate-400 text-sm">
+                  {isAdmin ? "Administrador" : "Panel de barbero"}
+                  {profile?.nombre
+                    ? ` - ${profile.nombre} ${profile.apellido || ""}`
+                    : ""}
+                </p>
               </div>
             </div>
-            <Link
-              to="/Client"
-              className="inline-flex items-center justify-center px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-lg transition-colors"
-            >
-              Ver cliente
-            </Link>
+            <div className="flex flex-col gap-3 sm:flex-row">
+{/*               <Link
+                to="/Client"
+                className="inline-flex items-center justify-center px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-lg transition-colors"
+              >
+                Ver cliente
+              </Link> */}
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-white/10 text-white hover:bg-white/5 transition-colors"
+              >
+                Cerrar sesion
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-wrap gap-3 mb-8">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
 

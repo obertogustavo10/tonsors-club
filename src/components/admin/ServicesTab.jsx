@@ -69,7 +69,10 @@ export default function ServicesTab({ services, onRefresh }) {
     try {
       setSubmitting(true);
       if (formDialog.service) {
-        await updateServicio({ id: formDialog.service.id, data: form });
+        await updateServicio({
+          id: formDialog.service.firestoreId || formDialog.service.id,
+          data: form,
+        });
       } else {
         await createServicio({ data: form });
       }
@@ -88,7 +91,9 @@ export default function ServicesTab({ services, onRefresh }) {
 
     try {
       setSubmitting(true);
-      await deleteServicio(deleteDialog.service.id);
+      await deleteServicio(
+        deleteDialog.service.firestoreId || deleteDialog.service.id
+      );
       closeDialogs();
       await onRefresh();
     } catch (error) {

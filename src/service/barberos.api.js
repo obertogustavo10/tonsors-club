@@ -4,6 +4,7 @@ import {
   deleteItem,
   getItemById,
   listItems,
+  listByField,
 } from "./firestore.service";
 import { uploadImage } from "./storage.service";
 import { nanoid } from "nanoid";
@@ -17,13 +18,22 @@ function toNumberOrNull(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeBarbero(barbero) {
+  if (!barbero) return null;
+
+  return {
+    ...barbero,
+    email: (barbero.email || "").trim().toLowerCase(),
+    available: barbero.available ?? true,
+  };
+}
+
 export async function createBarbero({ data, imageFile = null }) {
   const branch_id = (data?.branch_id || "").trim();
   const name = (data?.name || "").trim();
   const phone = (data?.phone || "").trim();
-  const email = (data?.email || "").trim();
+  const email = (data?.email || "").trim().toLowerCase();
 
-  if (!branch_id) throw new Error("Barbero: branch_id is required");
   if (!name) throw new Error("Barbero: name is required");
 
   let image = null;
@@ -39,18 +49,22 @@ export async function createBarbero({ data, imageFile = null }) {
   const payload = {
     id,
     branch_id,
+    authUid: (data?.authUid || "").trim() || null,
+    userUid: (data?.userUid || "").trim() || null,
     name,
     phone,
     email,
     specialty: (data?.specialty || "").trim(),
     rating: toNumberOrNull(data?.rating) ?? 0,
     reviews: toNumberOrNull(data?.reviews) ?? 0,
+    available: data?.available ?? true,
     imageUrl: image?.url || null,
     imagePath: image?.path || null,
     isActive: data?.isActive ?? true,
   };
 
-  return createItem(COLLECTION, payload);
+  const created = await createItem(COLLECTION, payload);
+  return normalizeBarbero(created);
 }
 
 export async function updateBarbero({ id, data, newImageFile = null }) {
@@ -59,10 +73,13 @@ export async function updateBarbero({ id, data, newImageFile = null }) {
   const patch = { ...data };
 
   if (typeof data?.branch_id === "string") patch.branch_id = data.branch_id.trim();
+  if (typeof data?.authUid === "string") patch.authUid = data.authUid.trim() || null;
+  if (typeof data?.userUid === "string") patch.userUid = data.userUid.trim() || null;
   if (typeof data?.name === "string") patch.name = data.name.trim();
   if (typeof data?.phone === "string") patch.phone = data.phone.trim();
-  if (typeof data?.email === "string") patch.email = data.email.trim();
+  if (typeof data?.email === "string") patch.email = data.email.trim().toLowerCase();
   if (typeof data?.specialty === "string") patch.specialty = data.specialty.trim();
+  if (typeof data?.available === "boolean") patch.available = data.available;
 
   if (data?.rating != null) patch.rating = toNumberOrNull(data.rating);
   if (data?.reviews != null) patch.reviews = toNumberOrNull(data.reviews);
@@ -77,7 +94,8 @@ export async function updateBarbero({ id, data, newImageFile = null }) {
     patch.imagePath = image.path;
   }
 
-  return updateItem(COLLECTION, id, patch);
+  const updated = await updateItem(COLLECTION, id, patch);
+  return normalizeBarbero(updated);
 }
 
 export async function deleteBarbero(id) {
@@ -85,9 +103,30 @@ export async function deleteBarbero(id) {
 }
 
 export async function getBarbero(id) {
-  return getItemById(COLLECTION, id);
+  const barber = await getItemById(COLLECTION, id);
+  return normalizeBarbero(barber);
+}
+
+export async function getBarberoByFirestoreId(id) {
+  if (!id) return null;
+  const barber = await getItemById(COLLECTION, id);
+  return normalizeBarbero(barber);
 }
 
 export async function listBarberos() {
-  return listItems(COLLECTION);
+  const barberos = await listItems(COLLECTION);
+  return barberos.map(normalizeBarbero);
+}
+
+export async function findBarberoByAuthUid(authUid) {
+  if (!authUid) return null;
+  const [barber] = await listByField(COLLECTION, "authUid", authUid);
+  return normalizeBarbero(barber || null);
+}
+
+export async function findBarberoByEmail(email) {
+  const normalizedEmail = (email || "").trim().toLowerCase();
+  if (!normalizedEmail) return null;
+  const [barber] = await listByField(COLLECTION, "email", normalizedEmail);
+  return normalizeBarbero(barber || null);
 }
