@@ -16,7 +16,7 @@ export default function Home() {
           className="absolute inset-0 bg-cover bg-center opacity-20"
           style={{ backgroundImage: `url(${barberiaBg})` }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/50 to-slate-900" />
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/20 via-emerald-900/35 to-slate-900" />
 
         <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
           <Link
@@ -46,7 +46,10 @@ export default function Home() {
             </div>
             
             <h1 className="text-5xl sm:text-7xl font-bold text-white mb-6">
-              Tonsor's <span className="bg-clip-text text-transparent bg-gradient-to-t from-[#3d601d] to-[#c7f669]">Club</span>
+              Tonsor's{" "}
+              <span className="bg-gradient-to-b from-[#fff1b8] via-[#f4c95d] to-[#b8860b] bg-clip-text text-transparent">
+                Club
+              </span>
             </h1>
             
             <p className="text-xl text-slate-300 mb-12 max-w-2xl mx-auto">
@@ -55,7 +58,7 @@ export default function Home() {
             
             <div className="flex justify-center">
               <Link to="/Client">
-                <Button className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-black font-bold text-lg px-8 py-6 rounded-xl shadow-lg shadow-amber-500/30">
+                <Button className="w-full sm:w-auto bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 hover:from-amber-200 hover:via-amber-400 hover:to-amber-600 text-black font-bold text-lg px-8 py-6 rounded-xl shadow-lg shadow-amber-500/30">
                   <Calendar className="w-6 h-6 mr-2" />
                   Reservar Cita
                 </Button>

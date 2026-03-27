@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
-import { LogIn, UserPlus } from "lucide-react";
+import { Eye, EyeOff, KeyRound, LogIn, UserPlus } from "lucide-react";
 import logoTonsors from "../assets/logo-tonsors-dorado.png";
 import { useAuth } from "../context/AuthContext";
-import { isUserApproved } from "../service/auth.service";
+import {
+  isUserApproved,
+  sendPanelPasswordReset,
+} from "../service/auth.service";
 import AccessPending from "../components/auth/AccessPending";
 
 const initialLogin = {
@@ -27,6 +30,11 @@ export default function Auth() {
   const [registerForm, setRegisterForm] = useState(initialRegister);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const from = useMemo(() => location.state?.from?.pathname || "/Admin", [location.state]);
 
   if (!loading && user && isUserApproved(profile)) {
@@ -51,6 +59,10 @@ export default function Auth() {
         return "El correo no tiene un formato valido.";
       case "auth/weak-password":
         return "La contrasena debe tener al menos 6 caracteres.";
+      case "auth/missing-email":
+        return "Ingresa tu correo para recuperar la contrasena.";
+      case "auth/too-many-requests":
+        return "Demasiados intentos. Espera un momento e intenta otra vez.";
       default:
         return "No se pudo completar la autenticacion. Intenta nuevamente.";
     }
@@ -83,6 +95,28 @@ export default function Auth() {
       setError(normalizeFirebaseError(firebaseError));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setError("");
+    setResetMessage("");
+
+    try {
+      setResetSubmitting(true);
+      await sendPanelPasswordReset(loginForm.email);
+      setResetMessage(
+        "Te enviamos un correo para restablecer la contrasena. Revisa tu bandeja y spam."
+      );
+    } catch (firebaseError) {
+      console.error("Error reset password:", firebaseError);
+      if (firebaseError?.message === "email-required") {
+        setError("Ingresa tu correo para recuperar la contrasena.");
+      } else {
+        setError(normalizeFirebaseError(firebaseError));
+      }
+    } finally {
+      setResetSubmitting(false);
     }
   };
 
@@ -164,6 +198,12 @@ export default function Auth() {
                 </div>
               )}
 
+              {resetMessage && (
+                <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                  {resetMessage}
+                </div>
+              )}
+
               {mode === "login" ? (
                 <form className="space-y-4" onSubmit={handleLogin}>
                   <div>
@@ -182,15 +222,63 @@ export default function Auth() {
                     <label className="mb-2 block text-sm text-slate-300">
                       Contrasena
                     </label>
-                    <input
-                      type="password"
-                      value={loginForm.password}
-                      onChange={(event) =>
-                        setLoginForm((prev) => ({ ...prev, password: event.target.value }))
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-                      placeholder="******"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showLoginPassword ? "text" : "password"}
+                        value={loginForm.password}
+                        onChange={(event) =>
+                          setLoginForm((prev) => ({ ...prev, password: event.target.value }))
+                        }
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white outline-none"
+                        placeholder="******"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                        aria-label={
+                          showLoginPassword
+                            ? "Ocultar contrasena"
+                            : "Mostrar contrasena"
+                        }
+                      >
+                        {showLoginPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword((prev) => !prev)}
+                      className="text-sm text-amber-300 hover:text-amber-200"
+                    >
+                      {showResetPassword
+                        ? "Ocultar recuperacion"
+                        : "Olvide mi contrasena"}
+                    </button>
+
+                    {showResetPassword && (
+                      <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                        <p className="text-sm text-slate-300">
+                          Te enviaremos un correo para cambiar la contrasena del acceso al panel.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handlePasswordReset}
+                          disabled={resetSubmitting}
+                          className="mt-3 inline-flex items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
+                        >
+                          <KeyRound className="mr-2 h-4 w-4" />
+                          {resetSubmitting
+                            ? "Enviando correo..."
+                            : "Enviar correo de recuperacion"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <button
                     type="submit"
@@ -262,17 +350,35 @@ export default function Auth() {
                     <label className="mb-2 block text-sm text-slate-300">
                       Contrasena
                     </label>
-                    <input
-                      type="password"
-                      value={registerForm.password}
-                      onChange={(event) =>
-                        setRegisterForm((prev) => ({
-                          ...prev,
-                          password: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showRegisterPassword ? "text" : "password"}
+                        value={registerForm.password}
+                        onChange={(event) =>
+                          setRegisterForm((prev) => ({
+                            ...prev,
+                            password: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegisterPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                        aria-label={
+                          showRegisterPassword
+                            ? "Ocultar contrasena"
+                            : "Mostrar contrasena"
+                        }
+                      >
+                        {showRegisterPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <button
                     type="submit"

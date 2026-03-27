@@ -1,6 +1,21 @@
 @import "tailwindcss";
+
+@theme {
+  --color-amber-50: #fffbea;
+  --color-amber-100: #fff3cc;
+  --color-amber-200: #f9e19b;
+  --color-amber-300: #efd073;
+  --color-amber-400: #ddb34a;
+  --color-amber-500: #c9971f;
+  --color-amber-600: #aa7c18;
+  --color-amber-700: #876014;
+  --color-amber-800: #644610;
+  --color-amber-900: #412c0b;
+  --color-amber-950: #241805;
+}
+
 :root {
-  --gradient-primary: linear-gradient(to top, #3d601d, #c7f669);
+  --gradient-primary: linear-gradient(to top, #8b6410, #f1d06b);
 }
 
 .btn-gradient {

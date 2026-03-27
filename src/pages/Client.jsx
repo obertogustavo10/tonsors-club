@@ -153,16 +153,22 @@ export default function Client() {
       <div className="bg-black/20 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3 md:gap-3 md:justify-start justify-between">
-            <Link to="/" className="rounded-xl overflow-hidden">
+            <Link
+              to="/"
+              className="flex h-16 w-28 items-center justify-start overflow-visible rounded-xl md:h-20 md:w-20"
+            >
               <img
                 src={logoTonsors}
                 alt="Tonsors Club Logo"
-                className="w-20 h-20 md:w-20 md:h-20 object-contain"
+                className="h-24 w-32 scale-[1.35] object-contain object-left md:h-20 md:w-20 md:scale-100"
               />
             </Link>
             <Link to="/">
               <h1 className="text-lg md:text-2xl font-bold text-white">
-                Tonsors' Club
+                Tonsor's{" "}
+                <span className="bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 bg-clip-text text-transparent">
+                  Club
+                </span>
               </h1>
               <p className="text-slate-400 text-xs md:text-sm">
                 Trasformamos tu estilo
@@ -182,9 +188,6 @@ export default function Client() {
               const isActive = currentStep === step.id;
               const isCompleted = currentStep > step.id;
 
-              const circleBg =
-                isCompleted || isActive ? "#f59e0b" : "rgba(255,255,255,0.1)";
-
               return (
                 <div
                   key={step.id}
@@ -196,11 +199,14 @@ export default function Client() {
                       initial={false}
                       animate={{
                         scale: isActive ? 1.08 : 1,
-                        backgroundColor: circleBg,
                       }}
                       className={`relative flex items-center justify-center rounded-full transition-all duration-300
                   w-10 h-10 sm:w-12 sm:h-12
-                  ${isCompleted || isActive ? "shadow-lg shadow-amber-500/30" : ""}
+                  ${
+                    isCompleted || isActive
+                      ? "bg-amber-500 shadow-lg shadow-amber-500/30"
+                      : "bg-white/10"
+                  }
                 `}>
                       <Icon
                         className={`w-4 h-4 sm:w-5 sm:h-5 ${

@@ -84,7 +84,7 @@ exports.sendTurnoEmails = onDocumentCreated("turnos/{turnoId}", async (event) =>
     <div style="background:#111111;padding:28px 24px;text-align:center;">
       <img
         src="${logoUrl}"
-        alt="TonSors Club"
+        alt="Tonsor's Club"
         style="max-width:140px;height:auto;display:block;margin:0 auto;"
       />
     </div>

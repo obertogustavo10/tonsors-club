@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -226,4 +227,13 @@ export async function loginPanelUser({ email, password }) {
 
 export async function logoutPanelUser() {
   await signOut(auth);
+}
+
+export async function sendPanelPasswordReset(email) {
+  const normalizedEmail = (email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("email-required");
+  }
+
+  await sendPasswordResetEmail(auth, normalizedEmail);
 }
