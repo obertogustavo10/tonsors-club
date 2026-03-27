@@ -109,9 +109,9 @@ export default function Auth() {
                 Registro de barberos con aprobacion manual
               </h2>
               <p className="mt-4 max-w-md text-slate-300">
-                Cada cuenta nueva se crea con rol de barbero. Aunque el login sea
-                correcto, el ingreso solo se habilita cuando un administrador
-                aprueba el usuario en Firestore.
+                Crea tu cuenta o inicia sesion. Aunque el login sea correcto, el
+                ingreso al admin solo se habilita cuando un administrador aprueba
+                tu perfil.
               </p>
             </div>
           </div>
@@ -125,11 +125,10 @@ export default function Auth() {
                     setMode("login");
                     setError("");
                   }}
-                  className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
-                    mode === "login"
+                  className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${mode === "login"
                       ? "bg-amber-500 text-black"
                       : "text-slate-300 hover:bg-white/5"
-                  }`}
+                    }`}
                 >
                   Iniciar sesion
                 </button>
@@ -139,11 +138,10 @@ export default function Auth() {
                     setMode("register");
                     setError("");
                   }}
-                  className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
-                    mode === "register"
+                  className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${mode === "register"
                       ? "bg-amber-500 text-black"
                       : "text-slate-300 hover:bg-white/5"
-                  }`}
+                    }`}
                 >
                   Crear cuenta
                 </button>

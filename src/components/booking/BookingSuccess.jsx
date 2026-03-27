@@ -31,6 +31,25 @@ function getDurationMinutes(service) {
   return 30;
 }
 
+function normalizePhoneForWhatsApp(phone) {
+  if (!phone) return null;
+  const normalized = String(phone).replace(/[^\d]/g, "");
+  return normalized || null;
+}
+
+function WhatsAppIcon(props) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M19.05 4.94A9.94 9.94 0 0 0 12 2C6.48 2 2 6.48 2 12c0 1.77.46 3.5 1.35 5.03L2 22l5.1-1.33A9.95 9.95 0 0 0 12 22c5.52 0 10-4.48 10-10 0-2.67-1.04-5.18-2.95-7.06ZM12 20.13a8.1 8.1 0 0 1-4.13-1.13l-.3-.18-3.03.79.81-2.96-.2-.31A8.11 8.11 0 0 1 3.87 12 8.13 8.13 0 1 1 12 20.13Zm4.46-6.08c-.24-.12-1.4-.69-1.62-.77-.22-.08-.38-.12-.54.12-.16.24-.62.77-.76.93-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.22-.72-.64-1.2-1.43-1.34-1.67-.14-.24-.01-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.41-.54-.42h-.46c-.16 0-.42.06-.64.3s-.84.82-.84 2 .86 2.32.98 2.48c.12.16 1.7 2.59 4.11 3.63.57.25 1.02.4 1.37.51.58.18 1.1.15 1.52.09.46-.07 1.4-.57 1.6-1.11.2-.54.2-1 .14-1.1-.06-.1-.22-.16-.46-.28Z" />
+    </svg>
+  );
+}
+
 export default function BookingSuccess({ booking, onNewBooking }) {
   const { branch, service, barber } = booking || {};
 
@@ -112,6 +131,42 @@ export default function BookingSuccess({ booking, onNewBooking }) {
       startDate,
     )}/${formatGoogleDate(endDate)}&details=${details}&location=${location}`;
   }, [booking?.date, booking?.time, service, branch, barber]);
+
+  const whatsappLink = useMemo(() => {
+    const barberPhone = normalizePhoneForWhatsApp(barber?.phone);
+    if (!barberPhone) return null;
+
+    const bookingDateLabel = booking?.date
+      ? format(parseISO(booking.date), "EEEE d 'de' MMMM", { locale: es })
+      : "-";
+
+    const message = encodeURIComponent(
+      `Hola ${barber?.name || ""}, te aviso que reserve un turno por la app.\n\n` +
+        `Cliente: ${clientName || "-"}\n` +
+        `Telefono: ${booking?.client_phone ?? booking?.clientPhone ?? "-"}\n` +
+        `Servicio: ${service?.name || "-"}\n` +
+        `Fecha: ${bookingDateLabel}\n` +
+        `Hora: ${booking?.time || "-"}\n` +
+        `Sucursal: ${branch?.name || "-"}\n` +
+        `Direccion: ${branch?.address || "-"}\n` +
+        `Notas: ${booking?.notes || "Sin notas"}\n\n` +
+        `Te escribo para que tengas el resumen a mano.`
+    );
+
+    return `https://wa.me/${barberPhone}?text=${message}`;
+  }, [
+    barber?.name,
+    barber?.phone,
+    branch?.address,
+    branch?.name,
+    booking?.client_phone,
+    booking?.clientPhone,
+    booking?.date,
+    booking?.notes,
+    booking?.time,
+    clientName,
+    service?.name,
+  ]);
 
   const emailPreview = `
 Hola ${clientName || "cliente"},
@@ -226,11 +281,11 @@ BarberShop Pro
           </div>
         </Card>
         {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col gap-4">
           {googleCalendarLink ? (
             <Button
               asChild
-              className="w-full h-12 bg-amber-400 hover:bg-amber-500 text-black font-semibold rounded-xl">
+              className="h-12 w-full rounded-xl bg-amber-400 font-semibold text-black hover:bg-amber-500">
               <a
                 href={googleCalendarLink}
                 target="_blank"
@@ -252,11 +307,36 @@ BarberShop Pro
             </Button>
           )}
 
+          {whatsappLink ? (
+            <Button
+              asChild
+              className="h-12 w-full rounded-xl bg-emerald-500 font-semibold text-white hover:bg-emerald-600"
+            >
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2"
+              >
+                <WhatsAppIcon className="h-5 w-5 shrink-0" />
+                <span>Notificar al barbero por WhatsApp</span>
+              </a>
+            </Button>
+          ) : (
+            <Button
+              className="min-h-[48px] w-full cursor-not-allowed rounded-xl bg-emerald-500/20 font-semibold text-white opacity-70"
+              disabled
+            >
+              <WhatsAppIcon className="mr-2 h-5 w-5 shrink-0" />
+              <span>WhatsApp no disponible para este barbero</span>
+            </Button>
+          )}
+
           <Button
             onClick={onNewBooking}
             variant="outline"
-            className="w-full sm:flex-1 min-h-[48px] border-white/20 text-white hover:bg-white/10 rounded-xl
-               flex items-center justify-center gap-2">
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border-white/20 text-white hover:bg-white/10"
+          >
             <span>Nueva Reserva</span>
             <ArrowRight className="w-5 h-5 shrink-0" />
           </Button>

@@ -1,20 +1,21 @@
-import React from 'react';
-import { Card, Button } from "@radix-ui/themes";
-import { MapPin, Phone, Clock, ChevronRight } from 'lucide-react';
+import React from "react";
+import { Card } from "@radix-ui/themes";
+import { MapPin, Phone, Clock, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
 import MobileStepFooter from "../ui/MobileStepFooter";
 import AppButton from "../ui/AppButton";
 
-
 export default function StepBranch({ branches, selected, onSelect, onNext }) {
   return (
     <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-white mb-2">Elige tu sucursal</h2>
-        <p className="text-slate-400">Selecciona la ubicación más conveniente para ti</p>
+      <div className="mb-8 text-center">
+        <h2 className="mb-2 text-3xl font-bold text-white">Elige tu sucursal</h2>
+        <p className="whitespace-nowrap text-[13px] text-slate-400 sm:text-base">
+          Selecciona la ubicacion mas conveniente para ti
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {branches.map((branch, index) => (
           <motion.div
             key={branch.id}
@@ -23,44 +24,46 @@ export default function StepBranch({ branches, selected, onSelect, onNext }) {
             transition={{ delay: index * 0.1 }}
           >
             <Card
-              className={`p-6 cursor-pointer transition-all duration-300 border-2 ${
+              className={`cursor-pointer border-2 p-6 transition-all duration-300 ${
                 selected?.id === branch.id
-                  ? 'bg-amber-500/10 border-amber-500 shadow-lg shadow-amber-500/20'
-                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                  ? "border-amber-500 bg-amber-500/10 shadow-lg shadow-amber-500/20"
+                  : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
               }`}
               onClick={() => onSelect(branch)}
             >
               <div className="flex gap-4">
-                <div className="w-20 h-20 rounded-xl overflow-hidden bg-white/10 flex-shrink-0">
+                <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-white/10">
                   {branch.image_url ? (
                     <img
                       src={branch.image_url}
                       alt={branch.name}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <MapPin className="w-8 h-8 text-amber-400" />
+                    <div className="flex h-full w-full items-center justify-center">
+                      <MapPin className="h-8 w-8 text-amber-400" />
                     </div>
                   )}
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white mb-1">{branch.name}</h3>
+                  <h3 className="mb-1 text-lg font-semibold text-white">{branch.name}</h3>
                   <div className="space-y-1 text-sm text-slate-400">
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-amber-400" />
+                      <MapPin className="h-4 w-4 text-amber-400" />
                       <span>{branch.address}</span>
                     </div>
                     {branch.phone && (
                       <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-amber-400" />
+                        <Phone className="h-4 w-4 text-amber-400" />
                         <span>{branch.phone}</span>
                       </div>
                     )}
                     {branch.opening_hour !== undefined && (
                       <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-amber-400" />
-                        <span>{branch.opening_hour}:00 - {branch.closing_hour}:00</span>
+                        <Clock className="h-4 w-4 text-amber-400" />
+                        <span>
+                          {branch.opening_hour}:00 - {branch.closing_hour}:00
+                        </span>
                       </div>
                     )}
                   </div>
@@ -72,23 +75,13 @@ export default function StepBranch({ branches, selected, onSelect, onNext }) {
       </div>
 
       {branches.length === 0 && (
-        <div className="text-center py-12">
-          <MapPin className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+        <div className="py-12 text-center">
+          <MapPin className="mx-auto mb-4 h-12 w-12 text-slate-600" />
           <p className="text-slate-400">No hay sucursales disponibles</p>
         </div>
       )}
 
-{/*       <div className="flex justify-end pt-6">
-        <Button
-          onClick={onNext}
-          disabled={!selected}
-          className="bg-amber-500 hover:bg-amber-600 text-black font-semibold px-8 py-3 rounded-xl disabled:opacity-50"
-        >
-          Continuar
-          <ChevronRight className="w-5 h-5 ml-2" />
-        </Button>
-      </div> */}
-            <MobileStepFooter>
+      <MobileStepFooter>
         <div className="w-full sm:w-auto">
           <AppButton
             variant="primary"
