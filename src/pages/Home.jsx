@@ -18,7 +18,7 @@ export default function Home() {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/20 via-emerald-900/35 to-slate-900" />
 
-        <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+{/*         <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
           <Link
             to="/Admin"
             aria-label="Abrir panel"
@@ -26,7 +26,7 @@ export default function Home() {
           >
             <Shield className="h-5 w-5" />
           </Link>
-        </div>
+        </div> */}
         
         <div className="relative max-w-7xl mx-auto px-4 py-24 sm:py-32">
           <motion.div

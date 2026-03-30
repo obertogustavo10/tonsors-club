@@ -11,7 +11,7 @@ export default function AppRoutes() {
       path: "/",
       element: <Home />,
     },
-    {
+/*     {
       path: "/auth",
       element: <Auth />,
     },
@@ -22,7 +22,7 @@ export default function AppRoutes() {
           <Admins />
         </ProtectedRoute>
       ),
-    },
+    }, */
     {
       path: "/Client",
       element: <Client />,
