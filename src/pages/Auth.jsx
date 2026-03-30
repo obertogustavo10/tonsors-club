@@ -8,6 +8,7 @@ import {
   sendPanelPasswordReset,
 } from "../service/auth.service";
 import AccessPending from "../components/auth/AccessPending";
+import InstallAppButton from "../components/pwa/InstallAppButton";
 import FullPageLoader from "../components/ui/FullPageLoader";
 import {
   clearRememberedPanelLogin,
@@ -274,6 +275,12 @@ export default function Auth() {
                   Ingresar al panel
                 </button>
               </form>
+
+              <div className="mt-6 border-t border-white/10 pt-6">
+                <div className="flex justify-center">
+                  <InstallAppButton />
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -1,19 +1,17 @@
 import { Navigate, createBrowserRouter, RouterProvider } from "react-router-dom";
 import Admins from "./pages/Admin";
 import Auth from "./pages/Auth";
-import Client from "./pages/Client";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
-import Home from "./pages/Home";
 
 export default function AppRoutes() {
   const router = createBrowserRouter([
     {
       path: "/",
-      element: <Home />,
+      element: <Auth />,
     },
     {
       path: "/auth",
-      element: <Auth />,
+      element: <Navigate to="/" replace />,
     },
     {
       path: "/admin",
@@ -22,14 +20,6 @@ export default function AppRoutes() {
           <Admins />
         </ProtectedRoute>
       ),
-    },
-    {
-      path: "/client",
-      element: <Client />,
-    },
-    {
-      path: "/Client",
-      element: <Navigate to="/client" replace />,
     },
     {
       path: "/Admin",
