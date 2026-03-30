@@ -39,7 +39,6 @@ export default function Auth() {
     if (!rememberedLogin) {
       return;
     }
-
     setLoginForm({
       email: rememberedLogin.email || "",
       password: rememberedLogin.password || "",
