@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  onAuthStateChanged,
+  setPersistence,
+} from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 import {
@@ -24,6 +28,12 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [barberProfile, setBarberProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setPersistence(auth, browserLocalPersistence).catch((error) => {
+      console.error("No se pudo configurar la persistencia de sesion:", error);
+    });
+  }, []);
 
   useEffect(() => {
     let unsubscribeProfile = null;

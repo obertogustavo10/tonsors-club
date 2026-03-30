@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   Scissors,
   CalendarDays,
@@ -43,6 +42,7 @@ export default function Admin() {
   const [userProfilesMap, setUserProfilesMap] = useState({});
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const loadData = async () => {
     try {
@@ -88,6 +88,16 @@ export default function Admin() {
     if (!profile) return;
     loadData();
   }, [profile?.uid, profile?.rol, barberProfile?.id]);
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      await logout();
+    } catch (error) {
+      console.error("Error cerrando sesion:", error);
+      setLoggingOut(false);
+    }
+  };
 
   const tabs = isAdmin ? ADMIN_TABS : BARBER_TABS;
 
@@ -146,7 +156,10 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <FullPageLoader show={loading} label="Cargando panel" />
+      <FullPageLoader
+        show={loading || loggingOut}
+        label={loggingOut ? "Cerrando sesion" : "Cargando panel"}
+      />
 
       <div className="bg-black/20 backdrop-blur-sm border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-6">
@@ -176,8 +189,9 @@ export default function Admin() {
               </Link> */}
               <button
                 type="button"
-                onClick={logout}
-                className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-white/10 text-white hover:bg-white/5 transition-colors"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-white/10 text-white hover:bg-white/5 transition-colors disabled:opacity-60"
               >
                 Cerrar sesion
               </button>

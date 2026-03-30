@@ -6,6 +6,7 @@ import { Calendar, Users, MapPin, Star } from 'lucide-react';
 import { motion } from "motion/react"
 import logoTonsors from "../assets/logo-tonsors-dorado.png";
 import barberiaBg from "../assets/barberia.png";
+import InstallAppButton from "../components/pwa/InstallAppButton";
 
 export default function Home() {
   return (
@@ -20,7 +21,7 @@ export default function Home() {
 
         <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
           <Link
-            to="/Admin"
+            to="/admin"
             aria-label="Abrir panel"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-slate-950/60 text-slate-300 shadow-lg backdrop-blur-md transition-colors hover:bg-white/10 hover:text-white"
           >
@@ -56,13 +57,14 @@ export default function Home() {
               La mejor experiencia en barbería. Reserva tu cita en minutos y disfruta de un servicio premium.
             </p>
             
-            <div className="flex justify-center">
-              <Link to="/Client">
+            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Link to="/client">
                 <Button className="w-full sm:w-auto bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 hover:from-amber-200 hover:via-amber-400 hover:to-amber-600 text-black font-bold text-lg px-8 py-6 rounded-xl shadow-lg shadow-amber-500/30">
                   <Calendar className="w-6 h-6 mr-2" />
                   Reservar Cita
                 </Button>
               </Link>
+              <InstallAppButton />
             </div>
           </motion.div>
         </div>

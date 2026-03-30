@@ -1,9 +1,9 @@
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { Navigate, createBrowserRouter, RouterProvider } from "react-router-dom";
 import Admins from "./pages/Admin";
 import Auth from "./pages/Auth";
 import Client from "./pages/Client";
-import Home from "./pages/Home";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import Home from "./pages/Home";
 
 export default function AppRoutes() {
   const router = createBrowserRouter([
@@ -16,7 +16,7 @@ export default function AppRoutes() {
       element: <Auth />,
     },
     {
-      path: "/Admin",
+      path: "/admin",
       element: (
         <ProtectedRoute>
           <Admins />
@@ -24,9 +24,21 @@ export default function AppRoutes() {
       ),
     },
     {
-      path: "/Client",
+      path: "/client",
       element: <Client />,
-    }
+    },
+    {
+      path: "/Client",
+      element: <Navigate to="/client" replace />,
+    },
+    {
+      path: "/Admin",
+      element: <Navigate to="/admin" replace />,
+    },
+    {
+      path: "*",
+      element: <Navigate to="/" replace />,
+    },
   ]);
 
   return <RouterProvider router={router} />;
