@@ -49,7 +49,7 @@ export default function StepService({ services, selected, onSelect, onNext, onBa
                 <div className="flex items-center justify-center gap-4 text-sm">
                   <div className="flex items-center gap-1 text-slate-300">
                     <Clock className="w-4 h-4 text-amber-400" />
-                    <span>{service.duration}</span>
+                    <span>{service.durationLabel}</span>
                   </div>
                   <div className="flex items-center gap-1 text-amber-400 font-semibold">
                   
