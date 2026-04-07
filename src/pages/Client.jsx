@@ -13,7 +13,11 @@ import BookingSuccess from "../components/booking/BookingSuccess";
 import { listServicios } from "../service/servicios.api";
 import FullPageLoader from "../components/ui/FullPageLoader";
 import { mockBookings } from "../mock/bookingMockData";
-import { reserveSlotAtomic } from "../service/barberAvailability.api";
+import {
+  getConsecutiveSlots,
+  getEndTimeFromStartTime,
+  reserveSlotAtomic,
+} from "../service/barberAvailability.api";
 import logoTonsors from "../assets/logo-tonsors-dorado.png";
 import { Link } from "react-router-dom";
 import {
@@ -21,6 +25,7 @@ import {
   setBooking,
   clearBooking,
 } from "../lib/sessionStore";
+import { getServiceDurationMinutes } from "../service/servicios.api";
 
 const STEPS = [
   { id: 1, title: "Sucursal", icon: MapPin },
@@ -91,6 +96,17 @@ export default function Client() {
   const onConfirmBooking = async () => {
     setLoading(true);
     try {
+      const serviceDurationMinutes =
+        getServiceDurationMinutes(bookingData.service) || 15;
+      const occupiedSlots = getConsecutiveSlots({
+        startTime: bookingData.time,
+        durationMinutes: serviceDurationMinutes,
+      });
+      const endTime = getEndTimeFromStartTime({
+        startTime: bookingData.time,
+        durationMinutes: serviceDurationMinutes,
+      });
+
       const created = {
         id: `bk_${Date.now()}`,
 
@@ -107,6 +123,9 @@ export default function Client() {
 
         date: bookingData.date,
         time: bookingData.time,
+        end_time: endTime,
+        duration_minutes: serviceDurationMinutes,
+        occupied_slots: occupiedSlots,
 
         client_name: bookingData.clientName,
         client_email: bookingData.clientEmail,
@@ -128,6 +147,7 @@ export default function Client() {
         branchId: bookingData.branch.id,
         date: bookingData.date,
         time: bookingData.time,
+        times: occupiedSlots,
       });
       console.log("Reserva de slot result:", hola);
       // ✅ 1) Guardar en Firestore (colección: turnos)

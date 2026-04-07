@@ -1,24 +1,82 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Button } from "@radix-ui/themes";
 import { Calendar, Clock, ChevronRight, ChevronLeft } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { motion } from "motion/react";
 import {
+  SLOT_INTERVAL_MINUTES,
   ensureBarberDaySlots,
-  DEFAULT_TIME_SLOTS,
+  generateTimeSlots,
+  getConsecutiveSlots,
   getArgentinaTodayDateString,
   isPastTimeSlot,
 } from "../../service/barberAvailability.api";
+import {
+  getBranchScheduleForDate,
+  isBranchOpenOnDate,
+} from "../../service/sucursales.api";
+import { getServiceDurationMinutes } from "../../service/servicios.api";
 import BarberLoader from "../ui/BarberLoader";
 
-function buildSlotState(day, dateStr) {
+function isSlotWithinBranchSchedule(time, schedule) {
+  if (!schedule?.isOpen) return false;
+  return time >= schedule.open && time < schedule.close;
+}
+
+function timeToMinutes(time) {
+  const [hours, minutes] = String(time || "")
+    .split(":")
+    .map(Number);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function shouldShowStartTime(time, schedule, serviceDurationMinutes) {
+  const slotMinutes = timeToMinutes(time);
+  const openMinutes = timeToMinutes(schedule?.open);
+  const duration = Number(serviceDurationMinutes);
+
+  if (
+    !Number.isFinite(slotMinutes) ||
+    !Number.isFinite(openMinutes) ||
+    !Number.isFinite(duration) ||
+    duration <= 0
+  ) {
+    return false;
+  }
+
+  return (slotMinutes - openMinutes) % duration === 0;
+}
+
+function buildSlotState(day, dateStr, schedule, serviceDurationMinutes) {
   const blocked = new Set(day?.blockedSlots || []);
   const booked = new Set(day?.bookedSlots || []);
+  const branchSlots = generateTimeSlots({
+    open: schedule?.open,
+    close: schedule?.close,
+  });
 
-  return DEFAULT_TIME_SLOTS.map((time) => {
-    const isBooked = booked.has(time);
-    const isBlocked = blocked.has(time);
+  return branchSlots.flatMap((time) => {
+    if (!shouldShowStartTime(time, schedule, serviceDurationMinutes)) {
+      return [];
+    }
+
+    const occupiedSlots = getConsecutiveSlots({
+      startTime: time,
+      durationMinutes: serviceDurationMinutes,
+    });
+    const fitsBranchSchedule = occupiedSlots.every((slot) =>
+      isSlotWithinBranchSchedule(slot, schedule)
+    );
+
+    if (!fitsBranchSchedule) {
+      return [];
+    }
+
+    const isBooked = occupiedSlots.some((slot) => booked.has(slot));
+    const isBlocked = occupiedSlots.some((slot) => blocked.has(slot));
     const isPast = isPastTimeSlot({ date: dateStr, time });
     const status = isBooked
       ? "booked"
@@ -30,6 +88,7 @@ function buildSlotState(day, dateStr) {
 
     return {
       time,
+      occupiedSlots,
       status,
       disabled: status !== "available",
     };
@@ -55,6 +114,7 @@ const statusLegend = [
 
 export default function StepDateTime({
   branch,
+  service,
   barbers,
   selectedDate,
   selectedTime,
@@ -64,47 +124,109 @@ export default function StepDateTime({
 }) {
   const [timeSlots, setTimeSlots] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [branchClosedMessage, setBranchClosedMessage] = useState("");
+  const requestIdRef = useRef(0);
+  const serviceDurationMinutes = useMemo(
+    () => getServiceDurationMinutes(service) || SLOT_INTERVAL_MINUTES,
+    [service]
+  );
 
   const availableDates = useMemo(() => {
     const today = parseISO(getArgentinaTodayDateString());
     const dates = [];
+
     for (let i = 0; i < 31; i++) {
-      dates.push(addDays(today, i));
+      const nextDate = addDays(today, i);
+      if (isBranchOpenOnDate(branch, nextDate)) {
+        dates.push(nextDate);
+      }
     }
+
     return dates;
-  }, []);
+  }, [branch]);
 
   const loadDaySlots = async (dateStr, keepSelectedTime = "") => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    setLoading(true);
+
     if (!barbers?.id || barbers?.available === false) {
+      if (requestIdRef.current !== requestId) return;
       setTimeSlots([]);
+      setBranchClosedMessage("");
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
+    const branchSchedule = getBranchScheduleForDate(branch, dateStr);
+    if (!branchSchedule?.isOpen) {
+      if (requestIdRef.current !== requestId) return;
+      setTimeSlots([]);
+      setBranchClosedMessage("La sucursal no atiende en la fecha seleccionada.");
+      onSelect(dateStr, "");
+      setLoading(false);
+      return;
+    }
+
+    setBranchClosedMessage("");
+
     try {
       const day = await ensureBarberDaySlots({
         barberId: barbers?.id,
         branchId: branch?.id,
         date: dateStr,
       });
-      setTimeSlots(buildSlotState(day, dateStr));
-      onSelect(dateStr, keepSelectedTime);
+      if (requestIdRef.current !== requestId) return;
+
+      const nextSlots = buildSlotState(
+        day,
+        dateStr,
+        branchSchedule,
+        serviceDurationMinutes
+      );
+      const keepTimeIsValid = nextSlots.some(
+        (slot) => slot.time === keepSelectedTime && !slot.disabled
+      );
+
+      setTimeSlots(nextSlots);
+      onSelect(dateStr, keepTimeIsValid ? keepSelectedTime : "");
     } catch (error) {
+      if (requestIdRef.current !== requestId) return;
       console.log("Error fetching availability:", error);
       setTimeSlots([]);
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    const dateStr = selectedDate || getArgentinaTodayDateString();
-    loadDaySlots(dateStr, selectedTime || "");
-  }, [barbers?.id, barbers?.available, selectedDate]);
+    const fallbackDate =
+      availableDates.length > 0
+        ? format(availableDates[0], "yyyy-MM-dd")
+        : getArgentinaTodayDateString();
+    const dateStr =
+      selectedDate && isBranchOpenOnDate(branch, selectedDate)
+        ? selectedDate
+        : fallbackDate;
 
-  const handleDateSelect = async (date) => {
+    loadDaySlots(dateStr, selectedTime || "");
+  }, [
+    barbers?.id,
+    barbers?.available,
+    selectedDate,
+    branch?.id,
+    availableDates,
+    serviceDurationMinutes,
+  ]);
+
+  const handleDateSelect = (date) => {
     const dateStr = format(date, "yyyy-MM-dd");
-    await loadDaySlots(dateStr, "");
+    if (dateStr === selectedDate) return;
+    setLoading(true);
+    onSelect(dateStr, "");
   };
 
   const handleTimeSelect = (slot) => {
@@ -113,7 +235,12 @@ export default function StepDateTime({
   };
 
   const selectedDateObj = selectedDate ? parseISO(selectedDate) : null;
-  const availableCount = timeSlots.filter((slot) => slot.status === "available").length;
+  const selectedBranchSchedule = selectedDate
+    ? getBranchScheduleForDate(branch, selectedDate)
+    : null;
+  const availableCount = timeSlots.filter(
+    (slot) => slot.status === "available"
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -127,41 +254,49 @@ export default function StepDateTime({
           <Calendar className="h-5 w-5 text-amber-400" />
           <h3 className="text-lg font-semibold text-white">Fecha</h3>
         </div>
-        <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-2">
-          {availableDates.map((date, index) => {
-            const isSelected =
-              selectedDateObj && isSameDay(date, selectedDateObj);
-            const isToday = format(date, "yyyy-MM-dd") === getArgentinaTodayDateString();
 
-            return (
-              <motion.button
-                key={index}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.03 }}
-                onClick={() => handleDateSelect(date)}
-                className={`w-16 flex-shrink-0 rounded-xl py-3 text-center transition-all ${
-                  isSelected
-                    ? "bg-amber-500 text-black shadow-lg shadow-amber-500/30"
-                    : "bg-white/5 text-white hover:bg-white/10"
-                }`}
-              >
-                <div className="text-xs uppercase opacity-70">
-                  {format(date, "EEE", { locale: es })}
-                </div>
-                <div className="text-xl font-bold">{format(date, "d")}</div>
-                <div className="text-xs opacity-70">
-                  {format(date, "MMM", { locale: es })}
-                </div>
-                {isToday && (
-                  <div className="text-[10px] font-semibold text-amber-400">
-                    Hoy
+        {availableDates.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-6 text-center text-sm text-slate-400">
+            La sucursal seleccionada no tiene dias habilitados para reservar.
+          </div>
+        ) : (
+          <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-2">
+            {availableDates.map((date, index) => {
+              const isSelected =
+                selectedDateObj && isSameDay(date, selectedDateObj);
+              const isToday =
+                format(date, "yyyy-MM-dd") === getArgentinaTodayDateString();
+
+              return (
+                <motion.button
+                  key={index}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.03 }}
+                  onClick={() => handleDateSelect(date)}
+                  className={`w-16 flex-shrink-0 rounded-xl py-3 text-center transition-all ${
+                    isSelected
+                      ? "bg-amber-500 text-black shadow-lg shadow-amber-500/30"
+                      : "bg-white/5 text-white hover:bg-white/10"
+                  }`}
+                >
+                  <div className="text-xs uppercase opacity-70">
+                    {format(date, "EEE", { locale: es })}
                   </div>
-                )}
-              </motion.button>
-            );
-          })}
-        </div>
+                  <div className="text-xl font-bold">{format(date, "d")}</div>
+                  <div className="text-xs opacity-70">
+                    {format(date, "MMM", { locale: es })}
+                  </div>
+                  {isToday && (
+                    <div className="text-[10px] font-semibold text-amber-400">
+                      Hoy
+                    </div>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       {selectedDate && (
@@ -184,6 +319,13 @@ export default function StepDateTime({
               ))}
             </div>
 
+            {selectedBranchSchedule?.isOpen && (
+              <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                Horario de la sucursal para este dia: {selectedBranchSchedule.open} -{" "}
+                {selectedBranchSchedule.close} | Servicio: {serviceDurationMinutes} min
+              </div>
+            )}
+
             {loading ? (
               <BarberLoader
                 show={loading}
@@ -193,6 +335,10 @@ export default function StepDateTime({
             ) : barbers?.available === false ? (
               <div className="py-8 text-center text-slate-400">
                 Este barbero no se encuentra disponible actualmente.
+              </div>
+            ) : branchClosedMessage ? (
+              <div className="py-8 text-center text-slate-400">
+                {branchClosedMessage}
               </div>
             ) : timeSlots.length === 0 ? (
               <div className="py-8 text-center text-slate-400">
@@ -208,7 +354,8 @@ export default function StepDateTime({
 
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-7">
                   {timeSlots.map((slot, index) => {
-                    const isSelected = selectedTime === slot.time && !slot.disabled;
+                    const isSelected =
+                      selectedTime === slot.time && !slot.disabled;
 
                     return (
                       <motion.button
@@ -255,7 +402,7 @@ export default function StepDateTime({
         </Button>
         <Button
           onClick={onNext}
-          disabled={!selectedDate || !selectedTime}
+          disabled={!selectedDate || !selectedTime || Boolean(branchClosedMessage)}
           className="rounded-xl bg-amber-500 px-8 py-3 font-semibold text-black hover:bg-amber-600 disabled:opacity-50"
         >
           Continuar

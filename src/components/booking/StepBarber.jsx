@@ -61,12 +61,12 @@ export default function StepBarber({
                 {barber.specialty && (
                   <p className="text-sm text-slate-400 mb-2">{barber.specialty}</p>
                 )}
-                {barber.rating && (
+{/*                 {barber.rating && (
                   <div className="flex items-center justify-center gap-1">
                     <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                     <span className="text-white font-medium">{barber.rating}</span>
                   </div>
-                )}
+                )} */}
               </div>
             </Card>
           </motion.div>

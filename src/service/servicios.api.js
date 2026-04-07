@@ -22,7 +22,7 @@ function parsePriceToNumber(input) {
 }
 
 /** Convierte "45 min" / "1 hrs" / "1 hr" / "90" a minutos */
-function parseDurationToMinutes(input) {
+export function parseDurationToMinutes(input) {
     if (input == null) return null;
 
     // si viene number, asumimos minutos
@@ -181,4 +181,18 @@ export async function getServicio(id) {
 
 export async function listServicios() {
     return listItems(COLLECTION);
+}
+
+export function getServiceDurationMinutes(service) {
+    if (!service) return null;
+
+    if (Number.isFinite(service?.durationMinutes)) {
+        return service.durationMinutes;
+    }
+
+    if (Number.isFinite(service?.duration)) {
+        return service.duration;
+    }
+
+    return parseDurationToMinutes(service?.durationLabel || service?.duration);
 }
