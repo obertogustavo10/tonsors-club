@@ -2,22 +2,98 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Clock, Lock, ShieldCheck } from "lucide-react";
 import FullPageLoader from "../ui/FullPageLoader";
 import {
-  DEFAULT_TIME_SLOTS,
   computeAvailableSlots,
   ensureBarberDaySlots,
   filterFutureSlots,
+  generateTimeSlots,
   getArgentinaTodayDateString,
+  getConsecutiveSlots,
   isPastTimeSlot,
   setManualBlockedSlots,
+  SLOT_INTERVAL_MINUTES,
 } from "../../service/barberAvailability.api";
+import { getServiceDurationMinutes } from "../../service/servicios.api";
+import { getBranchScheduleForDate } from "../../service/sucursales.api";
 
 function getTodayDate() {
   return getArgentinaTodayDateString();
 }
 
+function getBookingOccupiedSlots(booking) {
+  if (Array.isArray(booking?.occupied_slots) && booking.occupied_slots.length > 0) {
+    return booking.occupied_slots;
+  }
+
+  const durationMinutes =
+    booking?.duration_minutes ||
+    getServiceDurationMinutes(booking?.service) ||
+    SLOT_INTERVAL_MINUTES;
+
+  return getConsecutiveSlots({
+    startTime: booking?.time,
+    durationMinutes,
+  });
+}
+
+function getBookingDurationMinutes(booking) {
+  return (
+    booking?.duration_minutes ||
+    getServiceDurationMinutes(booking?.service) ||
+    SLOT_INTERVAL_MINUTES
+  );
+}
+
+function buildBookedSlotMap(bookings) {
+  const slotMap = new Map();
+
+  bookings.forEach((booking) => {
+    const occupiedSlots = getBookingOccupiedSlots(booking);
+    const durationMinutes = getBookingDurationMinutes(booking);
+    const serviceName = booking?.service?.name || "Turno reservado";
+    const clientName = booking?.client_name || "Cliente";
+    const label = `${serviceName} - ${clientName}`;
+
+    occupiedSlots.forEach((slot, index) => {
+      slotMap.set(slot, {
+        bookingId: booking?.firestoreId || booking?.id || `${booking?.date}_${slot}`,
+        label,
+        serviceName,
+        clientName,
+        durationMinutes,
+        position: occupiedSlots.length === 1
+          ? "single"
+          : index === 0
+            ? "start"
+            : index === occupiedSlots.length - 1
+              ? "end"
+              : "middle",
+        size: occupiedSlots.length,
+      });
+    });
+  });
+
+  return slotMap;
+}
+
+function getBookedSlotClasses(position) {
+  switch (position) {
+    case "start":
+      return "border-blue-400 bg-blue-500/15 text-blue-100 ring-1 ring-blue-400/40";
+    case "middle":
+      return "border-blue-500/30 bg-blue-500/10 text-blue-100";
+    case "end":
+      return "border-blue-400 bg-blue-500/15 text-blue-100 ring-1 ring-blue-400/40";
+    case "single":
+    default:
+      return "border-blue-400 bg-blue-500/15 text-blue-100 ring-1 ring-blue-400/40";
+  }
+}
+
 export default function AvailabilityTab({
   canManage = false,
   barbers = [],
+  branches = [],
+  bookings = [],
   selectedBarber = null,
 }) {
   const [activeBarberId, setActiveBarberId] = useState(selectedBarber?.id || "");
@@ -37,6 +113,42 @@ export default function AvailabilityTab({
     if (selectedBarber?.id && !canManage) return selectedBarber;
     return barbers.find((barber) => barber.id === activeBarberId) || null;
   }, [activeBarberId, barbers, canManage, selectedBarber]);
+
+  const activeBranch = useMemo(
+    () =>
+      branches.find(
+        (branch) =>
+          branch.id === activeBarber?.branch_id ||
+          branch.firestoreId === activeBarber?.branch_id
+      ) || null,
+    [activeBarber?.branch_id, branches]
+  );
+
+  const branchSchedule = useMemo(
+    () => getBranchScheduleForDate(activeBranch, selectedDate),
+    [activeBranch, selectedDate]
+  );
+
+  const allDaySlots = useMemo(() => {
+    if (!branchSchedule?.isOpen) return [];
+
+    return generateTimeSlots({
+      open: branchSchedule.open,
+      close: branchSchedule.close,
+    });
+  }, [branchSchedule]);
+
+  const dayBookings = useMemo(() => {
+    if (!activeBarber?.id || !selectedDate) return [];
+
+    return bookings.filter((booking) => {
+      const bookingBarberId = booking?.barber_id || booking?.barber?.id;
+      return bookingBarberId === activeBarber.id && booking?.date === selectedDate;
+    });
+  }, [activeBarber?.id, bookings, selectedDate]);
+
+  const bookedSlotMap = useMemo(() => buildBookedSlotMap(dayBookings), [dayBookings]);
+  const bookedSlots = useMemo(() => Array.from(bookedSlotMap.keys()), [bookedSlotMap]);
 
   const loadDaySlots = async () => {
     if (!activeBarber?.id || !selectedDate) {
@@ -67,7 +179,7 @@ export default function AvailabilityTab({
   }, [activeBarber?.id, selectedDate]);
 
   const toggleBlockedSlot = async (time) => {
-    if (daySlots?.bookedSlots?.includes(time)) return;
+    if (bookedSlotMap.has(time)) return;
     if (!activeBarber?.id || !selectedDate) return;
 
     const nextBlockedSlots = selectedBlockedSlots.includes(time)
@@ -97,7 +209,8 @@ export default function AvailabilityTab({
 
   const availableSlots = computeAvailableSlots({
     blockedSlots: selectedBlockedSlots,
-    bookedSlots: daySlots?.bookedSlots || [],
+    bookedSlots,
+    allSlots: allDaySlots,
   });
   const futureAvailableSlots = filterFutureSlots({
     date: selectedDate,
@@ -115,21 +228,19 @@ export default function AvailabilityTab({
 
   return (
     <div className="space-y-6">
-      <FullPageLoader
-        show={saving}
-        label="Guardando disponibilidad"
-      />
+      <FullPageLoader show={saving} label="Guardando disponibilidad" />
+
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">
             {canManage ? "Bloqueos manuales" : "Mis bloqueos"}
           </h2>
           <p className="text-slate-400">
-            Marca horarios no laborables sin afectar la logica de reservas ya existente.
+            Gestiona bloques de 15 minutos y visualiza los turnos tomados como grupos.
           </p>
         </div>
         <div className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-emerald-300">
-          {futureAvailableSlots.length} horarios libres
+          {futureAvailableSlots.length} bloques libres
         </div>
       </div>
 
@@ -179,15 +290,21 @@ export default function AvailabilityTab({
             </div>
           )}
 
-          <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm text-slate-300">
-            Los cambios se guardan automaticamente al bloquear o habilitar cada horario.
-          </div>
+          {branchSchedule?.isOpen ? (
+            <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+              Horario de la sucursal: {branchSchedule.open} - {branchSchedule.close}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm text-slate-300">
+              La sucursal no atiende en esta fecha.
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
           <div className="mb-4 flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-400" />
-            <h3 className="text-lg font-semibold text-white">Horarios del dia</h3>
+            <h3 className="text-lg font-semibold text-white">Bloques del dia</h3>
           </div>
 
           {!activeBarber?.id ? (
@@ -195,32 +312,51 @@ export default function AvailabilityTab({
               Selecciona un barbero para gestionar sus bloqueos.
             </p>
           ) : loading ? (
-            <p className="py-8 text-center text-slate-400">Cargando horarios...</p>
+            <p className="py-8 text-center text-slate-400">Cargando bloques...</p>
+          ) : !branchSchedule?.isOpen ? (
+            <p className="py-8 text-center text-slate-400">
+              La sucursal permanece cerrada en esta fecha.
+            </p>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-                {DEFAULT_TIME_SLOTS.map((time) => {
-                  const isBooked = daySlots?.bookedSlots?.includes(time);
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+                {allDaySlots.map((time) => {
+                  const bookedMeta = bookedSlotMap.get(time);
+                  const isBooked = Boolean(bookedMeta);
                   const isBlocked = selectedBlockedSlots.includes(time);
                   const isPast = isPastTimeSlot({ date: selectedDate, time });
+                  const buttonTitle = isBooked
+                    ? `${bookedMeta.label} · ${bookedMeta.size} bloque(s)`
+                    : time;
 
                   return (
                     <button
                       key={time}
                       type="button"
+                      title={buttonTitle}
                       onClick={() => toggleBlockedSlot(time)}
                       disabled={isBooked || isPast}
-                      className={`rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+                      className={`relative min-h-[68px] rounded-xl border px-2 py-2 text-sm font-medium transition-colors ${
                         isBooked
-                          ? "cursor-not-allowed border border-blue-500/30 bg-blue-500/10 text-blue-200"
+                          ? getBookedSlotClasses(bookedMeta.position)
                           : isPast
-                            ? "cursor-not-allowed border border-slate-700 bg-slate-800/70 text-slate-500 line-through"
-                          : isBlocked
-                            ? "border border-red-500/30 bg-red-500/15 text-red-200"
-                            : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                            ? "cursor-not-allowed border-slate-700 bg-slate-800/70 text-slate-500 line-through"
+                            : isBlocked
+                              ? "border-red-500/30 bg-red-500/15 text-red-200"
+                              : "border-white/10 bg-white/5 text-white hover:bg-white/10"
                       }`}
                     >
-                      {time}
+                      <div>{time}</div>
+                      {isBooked && bookedMeta.position === "start" && (
+                        <div className="mt-1 rounded-md bg-blue-950/60 px-1.5 py-1 text-[10px] leading-tight text-blue-100">
+                          Turno de {bookedMeta.durationMinutes} min
+                        </div>
+                      )}
+                      {isBlocked && (
+                        <div className="mt-1 text-[10px] uppercase tracking-wide">
+                          Bloqueado
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -230,7 +366,7 @@ export default function AvailabilityTab({
                 <div className="rounded-xl border border-white/10 bg-slate-950/30 p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-400">Reservados</p>
                   <p className="mt-2 text-lg font-semibold text-blue-200">
-                    {daySlots?.bookedSlots?.length || 0}
+                    {bookedSlots.length}
                   </p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-slate-950/30 p-4">

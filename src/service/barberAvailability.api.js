@@ -8,20 +8,52 @@ import {
 } from "firebase/firestore";
 
 export const DEFAULT_TIME_SLOTS = [
+  "09:00",
+  "09:15",
+  "09:30",
+  "09:45",
   "10:00",
+  "10:15",
+  "10:30",
   "10:45",
+  "11:00",
+  "11:15",
   "11:30",
+  "11:45",
+  "12:00",
   "12:15",
+  "12:30",
+  "12:45",
   "13:00",
+  "13:15",
+  "13:30",
   "13:45",
+  "14:00",
+  "14:15",
   "14:30",
+  "14:45",
+  "15:00",
   "15:15",
+  "15:30",
+  "15:45",
   "16:00",
+  "16:15",
+  "16:30",
   "16:45",
+  "17:00",
+  "17:15",
   "17:30",
+  "17:45",
+  "18:00",
   "18:15",
+  "18:30",
+  "18:45",
   "19:00",
+  "19:15",
+  "19:30",
+  "19:45",
 ];
+export const SLOT_INTERVAL_MINUTES = 15;
 
 export const ARGENTINA_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -202,8 +234,15 @@ export async function setManualBlockedSlots({
   return getBarberDaySlots({ barberId, date });
 }
 
-export async function reserveSlotAtomic({ barberId, branchId, date, time }) {
-  if (!time) throw new Error("time requerido");
+export async function reserveSlotAtomic({
+  barberId,
+  branchId,
+  date,
+  time,
+  times = [],
+}) {
+  const slotsToReserve = uniq(times.length > 0 ? times : [time]);
+  if (slotsToReserve.length === 0) throw new Error("time requerido");
   const ref = doc(db, COLLECTION, makeId(barberId, date));
 
   return runTransaction(db, async (tx) => {
@@ -223,14 +262,16 @@ export async function reserveSlotAtomic({ barberId, branchId, date, time }) {
     const blocked = base.blockedSlots || [];
     const booked = base.bookedSlots || [];
 
-    if (blocked.includes(time)) {
-      throw new Error("Horario bloqueado por el barbero");
-    }
-    if (booked.includes(time)) {
-      throw new Error("Horario ya reservado");
+    for (const slot of slotsToReserve) {
+      if (blocked.includes(slot)) {
+        throw new Error("Horario bloqueado por el barbero");
+      }
+      if (booked.includes(slot)) {
+        throw new Error("Horario ya reservado");
+      }
     }
 
-    const bookedSlots = uniq([...booked, time]);
+    const bookedSlots = uniq([...booked, ...slotsToReserve]);
 
     tx.set(
       ref,
@@ -249,11 +290,80 @@ export async function reserveSlotAtomic({ barberId, branchId, date, time }) {
   });
 }
 
-export function computeAvailableSlots({ blockedSlots = [], bookedSlots = [] }) {
+export function computeAvailableSlots({
+  blockedSlots = [],
+  bookedSlots = [],
+  allSlots = DEFAULT_TIME_SLOTS,
+}) {
   const blocked = new Set(blockedSlots || []);
   const booked = new Set(bookedSlots || []);
-  return DEFAULT_TIME_SLOTS.filter(
+  return allSlots.filter(
     (time) => !blocked.has(time) && !booked.has(time)
+  );
+}
+
+function timeToMinutes(time) {
+  const [hours, minutes] = String(time || "")
+    .split(":")
+    .map(Number);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function minutesToTime(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export function generateTimeSlots({
+  open,
+  close,
+  intervalMinutes = SLOT_INTERVAL_MINUTES,
+}) {
+  const startMinutes = timeToMinutes(open);
+  const endMinutes = timeToMinutes(close);
+
+  if (
+    !Number.isFinite(startMinutes) ||
+    !Number.isFinite(endMinutes) ||
+    startMinutes >= endMinutes
+  ) {
+    return [];
+  }
+
+  const slots = [];
+  for (
+    let currentMinutes = startMinutes;
+    currentMinutes < endMinutes;
+    currentMinutes += intervalMinutes
+  ) {
+    slots.push(minutesToTime(currentMinutes));
+  }
+
+  return slots;
+}
+
+export function getSlotCountForDuration(durationMinutes) {
+  const duration = Number(durationMinutes);
+  if (!Number.isFinite(duration) || duration <= 0) return 1;
+  return Math.max(1, Math.ceil(duration / SLOT_INTERVAL_MINUTES));
+}
+
+export function getConsecutiveSlots({
+  startTime,
+  durationMinutes,
+  intervalMinutes = SLOT_INTERVAL_MINUTES,
+}) {
+  const startMinutes = timeToMinutes(startTime);
+  const slotCount = getSlotCountForDuration(durationMinutes);
+
+  if (!Number.isFinite(startMinutes)) return [];
+
+  return Array.from({ length: slotCount }, (_, index) =>
+    minutesToTime(startMinutes + index * intervalMinutes)
   );
 }
 

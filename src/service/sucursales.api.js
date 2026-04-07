@@ -18,6 +18,15 @@ const DEFAULT_WEEKLY_SCHEDULE = {
   saturday: { isOpen: true, open: "09:00", close: "18:00" },
   sunday: { isOpen: false, open: "09:00", close: "18:00" },
 };
+const DATE_KEY_BY_DAY_INDEX = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
 
 function sanitizeDaySchedule(day, fallback) {
   return {
@@ -72,6 +81,26 @@ export function normalizeBranchHorarios(horarios) {
     close: normalizedClose,
     weekly,
   };
+}
+
+export function getBranchScheduleForDate(branch, dateValue) {
+  const horarios = normalizeBranchHorarios(branch?.horarios);
+  const date =
+    typeof dateValue === "string" ? new Date(`${dateValue}T12:00:00`) : dateValue;
+
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const dayKey = DATE_KEY_BY_DAY_INDEX[date.getDay()];
+  return {
+    dayKey,
+    ...horarios.weekly[dayKey],
+  };
+}
+
+export function isBranchOpenOnDate(branch, dateValue) {
+  return getBranchScheduleForDate(branch, dateValue)?.isOpen === true;
 }
 
 /**

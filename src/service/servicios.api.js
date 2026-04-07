@@ -180,5 +180,19 @@ export async function getServicio(id) {
 }
 
 export async function listServicios() {
-    return listItems(COLLECTION);
+  return listItems(COLLECTION);
+}
+
+export function getServiceDurationMinutes(service) {
+  if (!service) return null;
+
+  if (Number.isFinite(service?.durationMinutes)) {
+    return service.durationMinutes;
+  }
+
+  if (Number.isFinite(service?.duration)) {
+    return service.duration;
+  }
+
+  return parseDurationToMinutes(service?.durationLabel || service?.duration);
 }

@@ -11,6 +11,7 @@ import BarbersTab from "../components/admin/BarbersTab";
 import BranchesTab from "../components/admin/BranchesTab";
 import ServicesTab from "../components/admin/ServicesTab";
 import AvailabilityTab from "../components/admin/AvailabilityTab";
+import ManualBookingFab from "../components/admin/ManualBookingFab";
 import { listSucursales } from "../service/sucursales.api";
 import { listServicios } from "../service/servicios.api";
 import { listBarberos } from "../service/barberos.api";
@@ -118,6 +119,8 @@ export default function Admin() {
           <AvailabilityTab
             canManage={isAdmin}
             barbers={barbers}
+            branches={branches}
+            bookings={bookings}
             selectedBarber={barberProfile}
           />
         );
@@ -226,6 +229,15 @@ export default function Admin() {
 
         {tabContent}
       </div>
+
+      <ManualBookingFab
+        canManage={isAdmin}
+        barbers={barbers}
+        branches={branches}
+        services={services}
+        selectedBarber={barberProfile}
+        onCreated={loadData}
+      />
     </div>
   );
 }
