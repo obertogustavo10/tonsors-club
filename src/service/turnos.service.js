@@ -9,6 +9,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
+import { upsertClientFromTurno } from "./clientes.service";
 
 function normalizeTurno(docItem) {
   const data = docItem.data();
@@ -28,6 +29,13 @@ export async function createTurno(turnoData) {
   };
 
   const ref = await addDoc(collection(db, "turnos"), payload);
+
+  try {
+    await upsertClientFromTurno(turnoData);
+  } catch (error) {
+    console.error("Error guardando cliente del turno:", error);
+  }
+
   return {
     ...turnoData,
     firestoreId: ref.id,

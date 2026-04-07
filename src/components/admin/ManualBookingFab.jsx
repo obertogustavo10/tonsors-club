@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Clock3, Plus, Scissors, User, X } from "lucide-react";
+import { Clock3, Plus, User, X } from "lucide-react";
 import { createTurno } from "../../service/turnos.service";
+import { listClientes } from "../../service/clientes.service";
 import {
   ensureBarberDaySlots,
   generateTimeSlots,
@@ -16,6 +17,32 @@ import { getBranchScheduleForDate } from "../../service/sucursales.api";
 function isSlotWithinBranchSchedule(time, schedule) {
   if (!schedule?.isOpen) return false;
   return time >= schedule.open && time < schedule.close;
+}
+
+function toMinutes(time) {
+  const [hours, minutes] = String(time || "")
+    .split(":")
+    .map(Number);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function toTime(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function getEndTime(startTime, durationMinutes) {
+  const startMinutes = toMinutes(startTime);
+  const duration = Number(durationMinutes);
+
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(duration)) {
+    return startTime;
+  }
+
+  return toTime(startMinutes + duration);
 }
 
 function shouldShowStartTime(time, schedule, serviceDurationMinutes) {
@@ -80,33 +107,6 @@ function buildTimeOptions(day, dateStr, schedule, serviceDurationMinutes) {
   });
 }
 
-function toMinutes(time) {
-  const [hours, minutes] = String(time || "")
-    .split(":")
-    .map(Number);
-
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-  return hours * 60 + minutes;
-}
-
-function toTime(totalMinutes) {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-}
-
-function getEndTime(startTime, durationMinutes) {
-  const startMinutes = toMinutes(startTime);
-  const duration = Number(durationMinutes);
-
-  if (!Number.isFinite(startMinutes) || !Number.isFinite(duration)) {
-    return startTime;
-  }
-
-  return toTime(startMinutes + duration);
-}
-
 const slotStyles = {
   available: "border-white/10 bg-white/5 text-white hover:bg-white/10",
   booked:
@@ -123,6 +123,9 @@ function createInitialForm() {
     serviceId: "",
     date: getArgentinaTodayDateString(),
     time: "",
+    clientMode: "existing",
+    clientSearch: "",
+    selectedClientId: "",
     clientName: "",
     clientPhone: "",
     clientEmail: "",
@@ -139,7 +142,9 @@ export default function ManualBookingFab({
 }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(createInitialForm);
+  const [clients, setClients] = useState([]);
   const [timeOptions, setTimeOptions] = useState([]);
+  const [loadingClients, setLoadingClients] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [slotsMessage, setSlotsMessage] = useState("");
@@ -148,13 +153,37 @@ export default function ManualBookingFab({
   useEffect(() => {
     if (!open) return;
 
+    const defaultBarberId = canManage
+      ? barbers[0]?.id || ""
+      : selectedBarber?.id || "";
+
     setForm((prev) => ({
       ...createInitialForm(),
-      barberId: canManage ? prev.barberId : selectedBarber?.id || "",
+      barberId: defaultBarberId,
     }));
+    setClients([]);
     setTimeOptions([]);
     setSlotsMessage("");
-  }, [open, canManage, selectedBarber?.id]);
+  }, [open, canManage, barbers, selectedBarber?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const loadClients = async () => {
+      try {
+        setLoadingClients(true);
+        const nextClients = await listClientes();
+        setClients(nextClients);
+      } catch (error) {
+        console.error("Error cargando clientes:", error);
+        setClients([]);
+      } finally {
+        setLoadingClients(false);
+      }
+    };
+
+    loadClients();
+  }, [open]);
 
   const activeBarber = useMemo(() => {
     const targetId = canManage ? form.barberId : selectedBarber?.id;
@@ -179,6 +208,31 @@ export default function ManualBookingFab({
   const serviceDurationMinutes = useMemo(
     () => getServiceDurationMinutes(activeService) || SLOT_INTERVAL_MINUTES,
     [activeService]
+  );
+
+  const filteredClients = useMemo(() => {
+    const search = form.clientSearch.trim().toLowerCase();
+    if (!search) return clients.slice(0, 8);
+
+    return clients
+      .filter((client) => {
+        const haystack = [client.name, client.email, client.phone]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(search);
+      })
+      .slice(0, 8);
+  }, [clients, form.clientSearch]);
+
+  const selectedClient = useMemo(
+    () =>
+      clients.find(
+        (client) =>
+          client.id === form.selectedClientId ||
+          client.firestoreId === form.selectedClientId
+      ) || null,
+    [clients, form.selectedClientId]
   );
 
   useEffect(() => {
@@ -257,10 +311,35 @@ export default function ManualBookingFab({
   const handleClose = () => {
     setOpen(false);
     setSubmitting(false);
+    setLoadingClients(false);
     setLoadingSlots(false);
+    setClients([]);
     setTimeOptions([]);
     setSlotsMessage("");
     setForm(createInitialForm());
+  };
+
+  const handleSelectClient = (client) => {
+    setForm((prev) => ({
+      ...prev,
+      clientMode: "existing",
+      selectedClientId: client.id || client.firestoreId || "",
+      clientSearch: client.name || client.email || "",
+      clientName: client.name || "",
+      clientPhone: client.phone || "",
+      clientEmail: client.email || "",
+    }));
+  };
+
+  const handleCreateClientMode = () => {
+    setForm((prev) => ({
+      ...prev,
+      clientMode: "new",
+      selectedClientId: "",
+      clientName: "",
+      clientPhone: "",
+      clientEmail: "",
+    }));
   };
 
   const handleSubmit = async (event) => {
@@ -284,6 +363,15 @@ export default function ManualBookingFab({
         times: occupiedSlots,
       });
 
+      const bookingClient =
+        form.clientMode === "existing" && selectedClient
+          ? selectedClient
+          : {
+              name: form.clientName,
+              phone: form.clientPhone,
+              email: form.clientEmail,
+            };
+
       await createTurno({
         id: `manual_${Date.now()}`,
         branch: activeBranch,
@@ -299,9 +387,10 @@ export default function ManualBookingFab({
         end_time: getEndTime(form.time, serviceDurationMinutes),
         duration_minutes: serviceDurationMinutes,
         occupied_slots: occupiedSlots,
-        client_name: form.clientName,
-        client_email: form.clientEmail,
-        client_phone: form.clientPhone,
+        client_id: selectedClient?.id || selectedClient?.firestoreId || null,
+        client_name: bookingClient.name || "",
+        client_email: bookingClient.email || "",
+        client_phone: bookingClient.phone || "",
         status: "confirmed",
         source: "panel",
       });
@@ -321,9 +410,11 @@ export default function ManualBookingFab({
     Boolean(activeService?.id) &&
     Boolean(form.date) &&
     Boolean(form.time) &&
-    Boolean(form.clientName.trim()) &&
-    Boolean(form.clientPhone.trim()) &&
-    Boolean(form.clientEmail.trim());
+    (form.clientMode === "existing"
+      ? Boolean(selectedClient)
+      : Boolean(form.clientName.trim()) &&
+        Boolean(form.clientPhone.trim()) &&
+        Boolean(form.clientEmail.trim()));
 
   return (
     <>
@@ -487,56 +578,153 @@ export default function ManualBookingFab({
                 )}
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm text-slate-300">
-                    Nombre del cliente
-                  </label>
-                  <div className="relative">
-                    <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <div>
+                <label className="mb-2 block text-sm text-slate-300">Cliente</label>
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <input
-                      value={form.clientName}
+                      value={form.clientSearch}
                       onChange={(event) =>
                         setForm((prev) => ({
                           ...prev,
-                          clientName: event.target.value,
+                          clientSearch: event.target.value,
                         }))
                       }
-                      className="w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-white outline-none"
+                      placeholder="Buscar cliente por nombre, correo o telefono"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
                     />
+                    <button
+                      type="button"
+                      onClick={handleCreateClientMode}
+                      className="rounded-xl border border-amber-500/40 px-4 py-3 text-sm font-medium text-amber-300 hover:bg-amber-500/10"
+                    >
+                      Cliente nuevo
+                    </button>
                   </div>
-                </div>
 
-                <div>
-                  <label className="mb-2 block text-sm text-slate-300">
-                    Telefono
-                  </label>
-                  <input
-                    value={form.clientPhone}
-                    onChange={(event) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        clientPhone: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-                  />
-                </div>
-              </div>
+                  {selectedClient && form.clientMode === "existing" && (
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                      <div className="font-medium">{selectedClient.name}</div>
+                      <div>{selectedClient.phone || "Sin telefono"}</div>
+                      <div>{selectedClient.email}</div>
+                    </div>
+                  )}
 
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Correo</label>
-                <input
-                  type="email"
-                  value={form.clientEmail}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      clientEmail: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-                />
+                  {loadingClients ? (
+                    <div className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-4 text-sm text-slate-400">
+                      Cargando clientes...
+                    </div>
+                  ) : form.clientMode === "existing" ? (
+                    <div className="space-y-2">
+                      {filteredClients.length > 0 ? (
+                        filteredClients.map((client) => {
+                          const isSelected =
+                            (client.id || client.firestoreId) === form.selectedClientId;
+
+                          return (
+                            <button
+                              key={client.id || client.firestoreId}
+                              type="button"
+                              onClick={() => handleSelectClient(client)}
+                              className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                                isSelected
+                                  ? "border-amber-500 bg-amber-500/10 text-white"
+                                  : "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                              }`}
+                            >
+                              <div className="font-medium">{client.name || "Sin nombre"}</div>
+                              <div className="text-sm text-slate-400">
+                                {client.email || "Sin correo"}
+                              </div>
+                              <div className="text-sm text-slate-500">
+                                {client.phone || "Sin telefono"}
+                              </div>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-white/10 px-4 py-4 text-sm text-slate-400">
+                          No encontramos ese cliente. Puedes crear uno nuevo.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium text-white">
+                          Datos del cliente nuevo
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              clientMode: "existing",
+                              clientName: "",
+                              clientPhone: "",
+                              clientEmail: "",
+                            }))
+                          }
+                          className="text-sm text-slate-400 hover:text-white"
+                        >
+                          Volver a buscar
+                        </button>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-2 block text-sm text-slate-300">
+                            Nombre del cliente
+                          </label>
+                          <div className="relative">
+                            <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            <input
+                              value={form.clientName}
+                              onChange={(event) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  clientName: event.target.value,
+                                }))
+                              }
+                              className="w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-10 pr-4 text-white outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-sm text-slate-300">
+                            Telefono
+                          </label>
+                          <input
+                            value={form.clientPhone}
+                            onChange={(event) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                clientPhone: event.target.value,
+                              }))
+                            }
+                            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm text-slate-300">Correo</label>
+                        <input
+                          type="email"
+                          value={form.clientEmail}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              clientEmail: event.target.value,
+                            }))
+                          }
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </form>
 
@@ -552,7 +740,7 @@ export default function ManualBookingFab({
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={!isValid || submitting || loadingSlots}
+                  disabled={!isValid || submitting || loadingSlots || loadingClients}
                   className="rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-black hover:bg-amber-400 disabled:opacity-60"
                 >
                   {submitting ? "Creando..." : "Crear turno"}
