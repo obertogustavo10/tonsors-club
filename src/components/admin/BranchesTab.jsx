@@ -1,25 +1,86 @@
-import React, { useState } from "react";
-import { Plus, Pencil, Trash2, MapPin, Phone, Clock } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { format, endOfWeek, startOfWeek } from "date-fns";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  MapPin,
+  Phone,
+  Clock,
+  Copy,
+} from "lucide-react";
 import {
   createSucursal,
   deleteSucursal,
+  normalizeBranchHorarios,
   updateSucursal,
 } from "../../service/sucursales.api";
 
-const initialForm = {
+const DAY_OPTIONS = [
+  { key: "monday", label: "Lunes" },
+  { key: "tuesday", label: "Martes" },
+  { key: "wednesday", label: "Miercoles" },
+  { key: "thursday", label: "Jueves" },
+  { key: "friday", label: "Viernes" },
+  { key: "saturday", label: "Sabado" },
+  { key: "sunday", label: "Domingo" },
+];
+
+const DEFAULT_FORM = {
   name: "",
   address: "",
   phone: "",
-  horarios: {
-    open: "09:00",
-    close: "20:00",
-  },
+  horarios: normalizeBranchHorarios(),
 };
+
+function createInitialForm() {
+  return {
+    ...DEFAULT_FORM,
+    horarios: normalizeBranchHorarios(),
+  };
+}
+
+function buildFormFromBranch(branch) {
+  return {
+    name: branch?.name || "",
+    address: branch?.address || "",
+    phone: branch?.phone || "",
+    horarios: normalizeBranchHorarios(branch?.horarios),
+  };
+}
+
+function formatBranchScheduleSummary(horarios) {
+  const normalized = normalizeBranchHorarios(horarios);
+  const labels = DAY_OPTIONS.map(({ key, label }) => {
+    const day = normalized.weekly[key];
+    return day?.isOpen ? `${label}: ${day.open} - ${day.close}` : `${label}: Cerrado`;
+  });
+
+  return labels.slice(0, 2).concat(labels.length > 2 ? "..." : []);
+}
+
+function validateWeeklySchedule(horarios) {
+  const invalidDay = DAY_OPTIONS.find(({ key }) => {
+    const day = horarios?.weekly?.[key];
+    if (!day?.isOpen) return false;
+    if (!day.open || !day.close) return true;
+    return day.open >= day.close;
+  });
+
+  if (!invalidDay) return "";
+
+  const day = horarios.weekly[invalidDay.key];
+  if (!day.open || !day.close) {
+    return `Completa apertura y cierre para ${invalidDay.label}.`;
+  }
+
+  return `La apertura de ${invalidDay.label} debe ser menor al cierre.`;
+}
 
 function AdminModal({ title, children, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-xl font-semibold text-white">{title}</h3>
           <button
@@ -39,45 +100,113 @@ function AdminModal({ title, children, onClose }) {
 export default function BranchesTab({ branches, onRefresh }) {
   const [formDialog, setFormDialog] = useState({ open: false, branch: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, branch: null });
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(createInitialForm);
   const [submitting, setSubmitting] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
 
   const openCreateDialog = () => {
-    setForm(initialForm);
+    setForm(createInitialForm());
+    setScheduleError("");
     setFormDialog({ open: true, branch: null });
   };
 
   const openEditDialog = (branch) => {
-    setForm({
-      name: branch.name || "",
-      address: branch.address || "",
-      phone: branch.phone || "",
-      horarios: {
-        open: branch.horarios?.open || "09:00",
-        close: branch.horarios?.close || "20:00",
-      },
-    });
+    setForm(buildFormFromBranch(branch));
+    setScheduleError("");
     setFormDialog({ open: true, branch });
   };
 
   const closeDialogs = () => {
     setFormDialog({ open: false, branch: null });
     setDeleteDialog({ open: false, branch: null });
-    setForm(initialForm);
+    setForm(createInitialForm());
+    setScheduleError("");
   };
+
+  const updateDaySchedule = (dayKey, patch) => {
+    setForm((prev) => ({
+      ...prev,
+      horarios: {
+        ...prev.horarios,
+        weekly: {
+          ...prev.horarios.weekly,
+          [dayKey]: {
+            ...prev.horarios.weekly[dayKey],
+            ...patch,
+          },
+        },
+      },
+    }));
+    setScheduleError("");
+  };
+
+  const applyDayToKeys = (sourceKey, targetKeys) => {
+    setForm((prev) => {
+      const source = prev.horarios.weekly[sourceKey];
+      const nextWeekly = { ...prev.horarios.weekly };
+
+      targetKeys.forEach((key) => {
+        nextWeekly[key] = { ...source };
+      });
+
+      return {
+        ...prev,
+        horarios: {
+          ...prev.horarios,
+          weekly: nextWeekly,
+        },
+      };
+    });
+    setScheduleError("");
+  };
+
+  const applyToWorkweek = (sourceKey) => {
+    applyDayToKeys(sourceKey, ["monday", "tuesday", "wednesday", "thursday", "friday"]);
+  };
+
+  const applyToWholeWeek = (sourceKey) => {
+    applyDayToKeys(
+      sourceKey,
+      DAY_OPTIONS.map((day) => day.key)
+    );
+  };
+
+  const normalizedFormHorarios = useMemo(
+    () => normalizeBranchHorarios(form.horarios),
+    [form.horarios]
+  );
+  const currentWeekLabel = useMemo(() => {
+    const today = new Date();
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+
+    return `${format(weekStart, "dd/MM/yyyy")} - ${format(weekEnd, "dd/MM/yyyy")}`;
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const normalizedHorarios = normalizeBranchHorarios(form.horarios);
+    const validationMessage = validateWeeklySchedule(normalizedHorarios);
+
+    if (validationMessage) {
+      setScheduleError(validationMessage);
+      return;
+    }
+
+    const payload = {
+      ...form,
+      horarios: normalizedHorarios,
+    };
 
     try {
       setSubmitting(true);
       if (formDialog.branch) {
         await updateSucursal({
           id: formDialog.branch.firestoreId || formDialog.branch.id,
-          data: form,
+          data: payload,
         });
       } else {
-        await createSucursal({ data: form });
+        await createSucursal({ data: payload });
       }
       closeDialogs();
       await onRefresh();
@@ -158,10 +287,11 @@ export default function BranchesTab({ branches, onRefresh }) {
                   </div>
                   <div className="flex gap-2">
                     <Clock className="w-4 h-4 mt-0.5 text-amber-400" />
-                    <span>
-                      {branch.horarios?.open || "09:00"} -{" "}
-                      {branch.horarios?.close || "20:00"}
-                    </span>
+                    <div className="space-y-1">
+                      {formatBranchScheduleSummary(branch.horarios).map((line) => (
+                        <div key={line}>{line}</div>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-5 flex gap-2 border-t border-white/10 pt-4">
@@ -193,15 +323,27 @@ export default function BranchesTab({ branches, onRefresh }) {
           onClose={closeDialogs}
         >
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Nombre</label>
-              <input
-                value={form.name}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, name: event.target.value }))
-                }
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm text-slate-300">Nombre</label>
+                <input
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, name: event.target.value }))
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-slate-300">Telefono</label>
+                <input
+                  value={form.phone}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, phone: event.target.value }))
+                  }
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
+                />
+              </div>
             </div>
             <div>
               <label className="mb-2 block text-sm text-slate-300">Direccion</label>
@@ -213,45 +355,120 @@ export default function BranchesTab({ branches, onRefresh }) {
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
               />
             </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Telefono</label>
-              <input
-                value={form.phone}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, phone: event.target.value }))
-                }
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Apertura</label>
-                <input
-                  type="time"
-                  value={form.horarios.open}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      horarios: { ...prev.horarios, open: event.target.value },
-                    }))
-                  }
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-                />
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex flex-col gap-3 border-b border-white/10 pb-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h4 className="text-base font-semibold text-white">
+                    Horario semanal
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    Se cargan valores por defecto y luego puedes ajustarlos o
+                    copiar el horario a otros dias.
+                  </p>
+                  <p className="mt-2 text-xs font-medium uppercase tracking-wide text-amber-300">
+                    Semana actual: {currentWeekLabel}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  Base actual: {normalizedFormHorarios.open} -{" "}
+                  {normalizedFormHorarios.close}
+                </div>
               </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Cierre</label>
-                <input
-                  type="time"
-                  value={form.horarios.close}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      horarios: { ...prev.horarios, close: event.target.value },
-                    }))
-                  }
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
-                />
+
+              <div className="mt-4 space-y-3">
+                {DAY_OPTIONS.map(({ key, label }) => {
+                  const day = normalizedFormHorarios.weekly[key];
+
+                  return (
+                    <div
+                      key={key}
+                      className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
+                    >
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                        <div className="flex min-w-32 items-center justify-between gap-3 lg:block">
+                          <div className="text-sm font-semibold text-white">
+                            {label}
+                          </div>
+                          <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={day.isOpen}
+                              onChange={(event) =>
+                                updateDaySchedule(key, {
+                                  isOpen: event.target.checked,
+                                })
+                              }
+                              className="h-4 w-4 rounded border-white/10 bg-slate-900"
+                            />
+                            Abierto
+                          </label>
+                        </div>
+
+                        <div className="grid flex-1 gap-3 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-2 block text-xs text-slate-400">
+                              Apertura
+                            </label>
+                            <input
+                              type="time"
+                              value={day.open}
+                              disabled={!day.isOpen}
+                              onChange={(event) =>
+                                updateDaySchedule(key, {
+                                  open: event.target.value,
+                                })
+                              }
+                              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-xs text-slate-400">
+                              Cierre
+                            </label>
+                            <input
+                              type="time"
+                              value={day.close}
+                              disabled={!day.isOpen}
+                              onChange={(event) =>
+                                updateDaySchedule(key, {
+                                  close: event.target.value,
+                                })
+                              }
+                              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyToWorkweek(key)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copiar a lun-vie
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyToWholeWeek(key)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copiar a toda la semana
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+
+              {scheduleError && (
+                <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {scheduleError}
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button
