@@ -37,6 +37,27 @@ function formatBookingDate(dateValue) {
   }
 }
 
+function getBookingCreatedAtValue(booking) {
+  const createdAt = booking?.createdAt;
+
+  if (!createdAt) return 0;
+
+  if (typeof createdAt?.toDate === "function") {
+    return createdAt.toDate().getTime();
+  }
+
+  if (typeof createdAt?.seconds === "number") {
+    return createdAt.seconds * 1000;
+  }
+
+  if (typeof createdAt === "string" || createdAt instanceof Date) {
+    const parsed = new Date(createdAt).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+}
+
 function BookingDetailModal({
   booking,
   branchName,
@@ -175,9 +196,7 @@ export default function BookingsTab({
 
   const sortedBookings = useMemo(() => {
     return [...bookings].sort((a, b) => {
-      const aDate = `${a.date || ""} ${a.time || ""}`.trim();
-      const bDate = `${b.date || ""} ${b.time || ""}`.trim();
-      return bDate.localeCompare(aDate);
+      return getBookingCreatedAtValue(b) - getBookingCreatedAtValue(a);
     });
   }, [bookings]);
 
