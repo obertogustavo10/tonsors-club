@@ -43,8 +43,9 @@ function getBookingDurationMinutes(booking) {
   );
 }
 
-function buildBookedSlotMap(bookings) {
+function buildBookedSlotMap(bookedSlots = [], bookings = []) {
   const slotMap = new Map();
+  const bookingEntriesBySlot = new Map();
 
   bookings.forEach((booking) => {
     const occupiedSlots = getBookingOccupiedSlots(booking);
@@ -54,7 +55,7 @@ function buildBookedSlotMap(bookings) {
     const label = `${serviceName} - ${clientName}`;
 
     occupiedSlots.forEach((slot, index) => {
-      slotMap.set(slot, {
+      bookingEntriesBySlot.set(slot, {
         bookingId: booking?.firestoreId || booking?.id || `${booking?.date}_${slot}`,
         label,
         serviceName,
@@ -70,6 +71,21 @@ function buildBookedSlotMap(bookings) {
         size: occupiedSlots.length,
       });
     });
+  });
+
+  bookedSlots.forEach((slot) => {
+    slotMap.set(
+      slot,
+      bookingEntriesBySlot.get(slot) || {
+        bookingId: `booked_${slot}`,
+        label: "Turno reservado",
+        serviceName: "Turno reservado",
+        clientName: "Cliente",
+        durationMinutes: SLOT_INTERVAL_MINUTES,
+        position: "single",
+        size: 1,
+      }
+    );
   });
 
   return slotMap;
@@ -143,12 +159,19 @@ export default function AvailabilityTab({
 
     return bookings.filter((booking) => {
       const bookingBarberId = booking?.barber_id || booking?.barber?.id;
-      return bookingBarberId === activeBarber.id && booking?.date === selectedDate;
+      return (
+        bookingBarberId === activeBarber.id &&
+        booking?.date === selectedDate &&
+        booking?.status !== "cancelled"
+      );
     });
   }, [activeBarber?.id, bookings, selectedDate]);
 
-  const bookedSlotMap = useMemo(() => buildBookedSlotMap(dayBookings), [dayBookings]);
-  const bookedSlots = useMemo(() => Array.from(bookedSlotMap.keys()), [bookedSlotMap]);
+  const bookedSlots = useMemo(() => daySlots?.bookedSlots || [], [daySlots?.bookedSlots]);
+  const bookedSlotMap = useMemo(
+    () => buildBookedSlotMap(bookedSlots, dayBookings),
+    [bookedSlots, dayBookings]
+  );
 
   const loadDaySlots = async () => {
     if (!activeBarber?.id || !selectedDate) {

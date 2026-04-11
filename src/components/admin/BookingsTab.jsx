@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { updateTurno } from "../../service/turnos.service";
+import { cancelTurno, updateTurno } from "../../service/turnos.service";
 
 const statusColors = {
   pending: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
@@ -63,7 +63,8 @@ function BookingDetailModal({
   branchName,
   serviceName,
   barberName,
-  canManage,
+  canConfirm,
+  canCancel,
   submitting,
   onClose,
   onChangeStatus,
@@ -149,7 +150,7 @@ function BookingDetailModal({
 
         <div className="border-t border-white/10 px-4 py-4 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-            {canManage && booking.status !== "confirmed" && (
+            {canConfirm && booking.status !== "confirmed" && (
               <button
                 type="button"
                 onClick={() => onChangeStatus(booking, "confirmed")}
@@ -159,7 +160,7 @@ function BookingDetailModal({
                 Confirmar
               </button>
             )}
-            {canManage && booking.status !== "cancelled" && (
+            {canCancel && booking.status !== "cancelled" && (
               <button
                 type="button"
                 onClick={() => onChangeStatus(booking, "cancelled")}
@@ -193,6 +194,8 @@ export default function BookingsTab({
 }) {
   const [submittingId, setSubmittingId] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const canConfirmBookings = canManage;
+  const canCancelBookings = true;
 
   const sortedBookings = useMemo(() => {
     return [...bookings].sort((a, b) => {
@@ -223,7 +226,11 @@ export default function BookingsTab({
   const changeStatus = async (booking, status) => {
     try {
       setSubmittingId(booking.id);
-      await updateTurno(booking.firestoreId || booking.id, { status });
+      if (status === "cancelled") {
+        await cancelTurno(booking);
+      } else {
+        await updateTurno(booking.firestoreId || booking.id, { status });
+      }
       await onRefresh();
       setSelectedBooking((current) =>
         current?.id === booking.id ? { ...current, status } : current
@@ -325,7 +332,7 @@ export default function BookingsTab({
                     <th className="px-4 py-4 font-medium">Barbero</th>
                     <th className="px-4 py-4 font-medium">Fecha</th>
                     <th className="px-4 py-4 font-medium">Estado</th>
-                    {canManage && (
+                    {(canConfirmBookings || canCancelBookings) && (
                       <th className="px-4 py-4 font-medium text-right">Acciones</th>
                     )}
                   </tr>
@@ -385,10 +392,10 @@ export default function BookingsTab({
                           {statusLabels[booking.status] || booking.status || "Pendiente"}
                         </span>
                       </td>
-                      {canManage && (
+                      {(canConfirmBookings || canCancelBookings) && (
                         <td className="px-4 py-4">
                           <div className="flex justify-end gap-2">
-                            {booking.status !== "confirmed" && (
+                            {canConfirmBookings && booking.status !== "confirmed" && (
                               <button
                                 type="button"
                                 onClick={() => changeStatus(booking, "confirmed")}
@@ -398,7 +405,7 @@ export default function BookingsTab({
                                 Confirmar
                               </button>
                             )}
-                            {booking.status !== "cancelled" && (
+                            {canCancelBookings && booking.status !== "cancelled" && (
                               <button
                                 type="button"
                                 onClick={() => changeStatus(booking, "cancelled")}
@@ -425,7 +432,8 @@ export default function BookingsTab({
         branchName={selectedBooking ? getBranchName(selectedBooking) : "-"}
         serviceName={selectedBooking ? getServiceName(selectedBooking) : "-"}
         barberName={selectedBooking ? getBarberName(selectedBooking) : "-"}
-        canManage={canManage}
+        canConfirm={canConfirmBookings}
+        canCancel={canCancelBookings}
         submitting={submittingId === selectedBooking?.id}
         onClose={() => setSelectedBooking(null)}
         onChangeStatus={changeStatus}
